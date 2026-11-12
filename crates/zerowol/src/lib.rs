@@ -1,4 +1,7 @@
 pub mod agent_client;
+pub mod app;
+pub mod auth;
+pub mod config;
 pub mod model;
 pub mod probe;
 pub mod status;
