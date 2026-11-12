@@ -19,6 +19,8 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+      - run: cargo clippy -p zerowol --all-targets --features dev-fakes -- -D warnings
+      - run: cargo test -p zerowol --features dev-fakes fake::
 
   docker:
     runs-on: ubuntu-latest

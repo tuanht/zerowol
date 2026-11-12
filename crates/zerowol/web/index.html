@@ -14,6 +14,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="stylesheet" href="/vendor/framework7.css">
 <link rel="stylesheet" href="/app.css">
 </head>
 <body>
@@ -27,16 +28,31 @@
 </defs>
 </svg>
 <div id="offline" class="offline" hidden>Can't reach zerowol</div>
-<div class="nav"></div>
-<button id="gear" class="gear glass" aria-label="Settings"><svg class="ico"><use href="#i-gear"/></svg></button>
-<main>
-<h1>Machines</h1>
-<div id="list"></div>
-<p id="foot" class="foot" hidden>Wake uses a magic packet. Restart and Shut Down require the zerowol agent.</p>
-</main>
-<button id="add" class="add glass"><svg class="ico"><use href="#i-plus"/></svg><span>Add Machine</span></button>
-<div id="sheet-root"></div>
-<div id="toasts" class="toasts" aria-live="polite"></div>
+<div id="app">
+  <div class="view view-main safe-areas">
+    <div class="page" data-name="home">
+      <div class="navbar navbar-large">
+        <div class="navbar-bg"></div>
+        <div class="navbar-inner">
+          <div class="title sliding">Machines</div>
+          <div class="right zw-md-only"><a href="/settings/" id="gear-top" class="link icon-only" aria-label="Settings"><svg class="ico"><use href="#i-gear"/></svg></a></div>
+          <div class="title-large"><div class="title-large-text">Machines</div></div>
+        </div>
+      </div>
+      <div class="fab fab-left-bottom fab-gear">
+        <a href="/settings/" id="gear" aria-label="Settings"><svg class="ico"><use href="#i-gear"/></svg></a>
+      </div>
+      <div class="fab fab-right-bottom">
+        <a href="/machine/new/" id="add" aria-label="Add Machine"><svg class="ico"><use href="#i-plus"/></svg></a>
+      </div>
+      <div class="page-content">
+        <div id="list"></div>
+        <div id="foot" class="block-footer foot" hidden>Wake uses a magic packet. Restart and Shut Down require the zerowol agent.</div>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/vendor/framework7.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

@@ -39,6 +39,16 @@ pub fn get(path: &str) -> Option<Asset> {
             "text/css; charset=utf-8",
             NO_CACHE,
         ),
+        "/vendor/framework7.js" => b(
+            include_bytes!("../web/vendor/framework7.js"),
+            "text/javascript; charset=utf-8",
+            NO_CACHE,
+        ),
+        "/vendor/framework7.css" => b(
+            include_bytes!("../web/vendor/framework7.css"),
+            "text/css; charset=utf-8",
+            NO_CACHE,
+        ),
         "/manifest.webmanifest" => b(
             include_bytes!("../web/manifest.webmanifest"),
             "application/manifest+json",

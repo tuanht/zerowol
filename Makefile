@@ -1,12 +1,23 @@
 AGENT_X86 := $(CURDIR)/target/x86_64-unknown-linux-musl/release/zerowol-agent
 AGENT_ARM := $(CURDIR)/target/aarch64-unknown-linux-musl/release/zerowol-agent
 
-.PHONY: test agents dist image smoke
+.PHONY: test dev agents dist image smoke
+
+DEV_DATA ?= $(CURDIR)/target/dev-data
+DEV_PORT ?= 8090
 
 test:
 	cargo fmt --all --check
 	cargo clippy --workspace --all-targets -- -D warnings
 	cargo test --workspace
+	cargo clippy -p zerowol --all-targets --features dev-fakes -- -D warnings
+	cargo test -p zerowol --features dev-fakes fake::
+
+# Development server with simulated fake machines (never in release builds).
+dev:
+	mkdir -p $(DEV_DATA)
+	ZEROWOL_DATA=$(DEV_DATA) ZEROWOL_PORT=$(DEV_PORT) ZEROWOL_DEV_FAKES=1 \
+		cargo run -p zerowol --features dev-fakes
 
 agents:
 	cargo zigbuild --release -p zerowol-agent --target x86_64-unknown-linux-musl

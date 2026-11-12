@@ -37,6 +37,10 @@ impl Status {
 /// Agent health and TCP probe run concurrently, each capped at 1.5 s, so the
 /// whole call finishes in ~1.5 s and a probe result is never discarded.
 pub async fn machine_status(m: &Machine) -> Status {
+    #[cfg(feature = "dev-fakes")]
+    if let Some(s) = crate::fake::status(m) {
+        return s;
+    }
     let probe_fut = async {
         tokio::time::timeout(
             OVERALL_CAP,

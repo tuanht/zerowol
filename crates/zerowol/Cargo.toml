@@ -13,6 +13,10 @@ path = "src/lib.rs"
 name = "zerowol"
 path = "src/main.rs"
 
+[features]
+# Development only: fake machines with simulated status (ZEROWOL_DEV_FAKES=1). Never enable for release builds.
+dev-fakes = []
+
 [dependencies]
 zerowol-proto = { path = "../zerowol-proto" }
 tokio = { version = "1", features = ["full"] }

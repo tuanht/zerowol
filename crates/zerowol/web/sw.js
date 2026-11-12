@@ -1,5 +1,13 @@
 const CACHE = "zerowol-__VERSION__";
-const SHELL = ["/", "/app.js", "/app.css", "/manifest.webmanifest", "/icon.svg"];
+const SHELL = [
+  "/",
+  "/app.js",
+  "/app.css",
+  "/vendor/framework7.js",
+  "/vendor/framework7.css",
+  "/manifest.webmanifest",
+  "/icon.svg",
+];
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
 });
