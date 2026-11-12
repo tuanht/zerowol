@@ -1,7 +1,7 @@
 AGENT_X86 := $(CURDIR)/target/x86_64-unknown-linux-musl/release/zerowol-agent
 AGENT_ARM := $(CURDIR)/target/aarch64-unknown-linux-musl/release/zerowol-agent
 
-.PHONY: test dev agents dist image smoke
+.PHONY: test dev agents dist image smoke ui-regression
 
 DEV_DATA ?= $(CURDIR)/target/dev-data
 DEV_PORT ?= 8090
@@ -34,3 +34,7 @@ image:
 
 smoke:
 	scripts/e2e-smoke.sh
+
+# Browser UI regression cases (needs Playwright, see the script header).
+ui-regression:
+	scripts/ui-regression.sh
