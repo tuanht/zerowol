@@ -5,9 +5,10 @@ const LIMIT = { wake: 120e3, shutdown: 90e3, reboot: 180e3 };
 const BUSY = { wake: "Waking…", shutdown: "Shutting down…", reboot: "Restarting…" };
 const HINT = " Check journalctl -u zerowol-agent on the PC.";
 const FAIL = { wake: "Didn't come online", shutdown: "Didn't shut down." + HINT, reboot: "Didn't restart." + HINT };
-const $ = (s) => document.querySelector(s);
+const THEME_KEY = "zw-theme"; // "auto" | "ios" | "md"
+const $ = (s, root) => (root || document).querySelector(s);
 const T = new Map(); // machine id -> {kind, start, off}
-let machines = [], loaded = false, timer = 0, sheetEls = null, onClose = null;
+let machines = [], loaded = false, timer = 0;
 
 function h(tag, props, ...kids) {
   const e = document.createElement(tag);
@@ -31,6 +32,50 @@ function ico(id) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/* ---------- theme + app ---------- */
+function themePref() {
+  try { const v = localStorage.getItem(THEME_KEY); if (v === "ios" || v === "md") return v; } catch {}
+  return "auto";
+}
+const app = new Framework7({
+  el: "#app",
+  name: "zerowol",
+  theme: themePref(),
+  darkMode: "auto",
+  colors: { primary: "#007aff" },
+  touch: { tapHold: false },
+  routes: [
+    { path: "/machine/new/", async: ({ resolve }) => resolve({ el: machinePage(null) }) },
+    { path: "/machine/:id/pair/", async: ({ to, resolve, reject }) => routeMachine(to, resolve, reject, (m) => pairingPage(m, to.query.rotate === "1")) },
+    { path: "/machine/:id/", async: ({ to, resolve, reject }) => routeMachine(to, resolve, reject, machinePage) },
+    { path: "/settings/", async: ({ resolve }) => resolve({ el: settingsPage() }) },
+  ],
+});
+const IOS = app.theme === "ios";
+document.documentElement.classList.add(IOS ? "zw-ios" : "zw-md");
+// Hash-based history gives Android a working system back button. iOS keeps it
+// off: Safari's own edge swipe would fight Framework7's swipe-back.
+if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+const view = app.views.create(".view-main", {
+  url: "/",
+  browserHistory: !IOS,
+  browserHistorySeparator: "#!",
+  browserHistoryAnimateOnLoad: false,
+  iosSwipeBack: true,
+});
+
+function routeMachine(to, resolve, reject, build) {
+  const m = machines.find((x) => x.id === to.params.id);
+  if (m) return resolve({ el: build(m) });
+  api("GET", "/machines").then((list) => {
+    machines = list;
+    const found = list.find((x) => x.id === to.params.id);
+    if (found) resolve({ el: build(found) });
+    else { toast("Machine not found"); reject(); }
+  }).catch((e) => { fail(e); reject(); });
+}
+
+/* ---------- helpers ---------- */
 async function api(method, path, body) {
   const r = await fetch("/api/v1" + path, {
     method,
@@ -44,14 +89,54 @@ async function api(method, path, body) {
   return j;
 }
 function toast(msg, ok) {
-  const t = h("div", { class: "toast" + (ok ? "" : " bad") }, msg);
-  $("#toasts").append(t);
-  setTimeout(() => t.remove(), 4000);
+  app.toast.create({ text: msg, position: "top", closeTimeout: 4000, cssClass: ok ? "" : "toast-bad" }).open();
 }
-const fail = (e) => toast(e.message === "Failed to fetch" || e instanceof TypeError ? "Can't reach zerowol" : e.message);
+const offlineMsg = (e) => (e instanceof TypeError ? "Can't reach zerowol" : e.message);
+const fail = (e) => toast(offlineMsg(e));
 function uptime(s) {
   const d = Math.floor(s / 86400), hr = Math.floor(s / 3600) % 24, m = Math.floor(s / 60) % 60;
   return d ? d + "d " + hr + "h" : hr ? hr + "h " + m + "m" : m ? m + "m" : "<1m";
+}
+function confirmDialog(title, text, label, red, fn) {
+  app.dialog.create({
+    title, text,
+    buttons: [{ text: "Cancel" }, { text: label, strong: true, color: red ? "red" : null, onClick: fn }],
+  }).open();
+}
+async function copy(text, b) {
+  try { await navigator.clipboard.writeText(text); } catch {
+    const t = h("textarea", { readonly: true }, text);
+    t.style.cssText = "position:fixed;opacity:0";
+    document.body.append(t);
+    t.select(); t.setSelectionRange(0, 1e6);
+    try { document.execCommand("copy"); } catch {}
+    t.remove();
+  }
+  const o = b.textContent;
+  b.textContent = "Copied";
+  setTimeout(() => (b.textContent = o), 1500);
+}
+
+/* ---------- page scaffolding ---------- */
+function page(name, title, right, ...content) {
+  const back = h("a", { class: "link back", href: "#" }, h("i", { class: "icon icon-back" }), IOS ? h("span", null, "Back") : null);
+  return h("div", { class: "page", "data-name": name },
+    h("div", { class: "navbar" },
+      h("div", { class: "navbar-bg" }),
+      h("div", { class: "navbar-inner sliding" },
+        h("div", { class: "left" }, back),
+        h("div", { class: "title" }, title),
+        right ? h("div", { class: "right" }, right) : null)),
+    h("div", { class: "page-content" }, content));
+}
+const list = (cls, ...items) => h("div", { class: "list " + (cls || "") }, h("ul", null, items));
+const LIST = "list-strong inset list-dividers-ios";
+const blockTitle = (t) => h("div", { class: "block-title" }, t);
+const footer = (t) => h("div", { class: "block-footer" }, t);
+const bigBtn = (text, fn, cls) => h("button", { class: "button button-large button-fill " + (cls || ""), type: "button", onclick: fn }, text);
+const linkItem = (text, fn, cls) => h("li", null, h("a", { class: "list-button " + (cls || ""), href: "#", onclick: (e) => { e.preventDefault(); fn(); } }, text));
+function onRemove(pageEl, fn) {
+  pageEl.addEventListener("page:beforeremove", fn);
 }
 
 /* ---------- polling and transitions ---------- */
@@ -87,32 +172,38 @@ function schedule() {
 }
 document.addEventListener("visibilitychange", () => (document.hidden ? clearTimeout(timer) : refresh()));
 
-/* ---------- list ---------- */
+/* ---------- home list ---------- */
+const go = (url) => view.router.navigate(url);
 function card(m) {
   const t = T.get(m.id), st = m.status || {}, on = !!st.online;
   const label = t ? BUSY[t.kind] : on ? "Online" : "Offline";
   const meta = m.ip + " · " + (on ? (st.uptime != null ? "Up " + uptime(st.uptime) : "Online") : "Offline") + (st.agent_error ? " · Agent: " + st.agent_error : "");
-  const btn = (cls, icon, text, fn) => h("button", { class: cls, disabled: !!t, onclick: fn }, ico(icon), text);
+  const btn = (cls, icon, text, fn) => h("button", { class: "button " + cls, type: "button", disabled: !!t, onclick: fn }, ico(icon), h("span", null, text));
   let acts;
   if (on && st.agent === "paired")
-    acts = [btn("", "redo", "Restart", () => confirmPower(m, "reboot")), btn("red", "power", "Shut Down", () => confirmPower(m, "shutdown"))];
-  else if (m.agent && st.agent_error) acts = [btn("", "redo", "Agent: " + st.agent_error + " · Pair", () => pairingSheet(m))];
-  else if (on && m.agent) acts = [btn("", "redo", "Agent unreachable · Pair", () => pairingSheet(m))];
+    acts = [btn("", "redo", "Restart", () => confirmPower(m, "reboot")), btn("color-red", "power", "Shut Down", () => confirmPower(m, "shutdown"))];
+  else if (m.agent && st.agent_error) acts = [btn("", "redo", "Agent: " + st.agent_error + " · Pair", () => go("/machine/" + m.id + "/pair/"))];
+  else if (on && m.agent) acts = [btn("", "redo", "Agent unreachable · Pair", () => go("/machine/" + m.id + "/pair/"))];
   else acts = [btn("", "power", "Wake", () => wake(m))];
-  return h("div", { class: "group" },
-    h("button", { class: "item", onclick: () => machineSheet(m) },
-      h("div", { class: "tile" }, ico("desk")),
-      h("div", { class: "txt" }, h("div", { class: "name" }, m.name), h("div", { class: "meta" }, meta)),
-      h("div", { class: "status-r" + (t ? " busy-t" : "") }, h("span", { class: "dot" + (t ? " busy" : on ? " on" : "") }), label)),
-    h("div", { class: "actions" }, acts));
+  return h("div", { class: "card machine" + (IOS ? "" : " card-outline") },
+    h("div", { class: "list media-list no-margin no-hairlines" }, h("ul", null, h("li", null,
+      h("a", { class: "item-link item-content", href: "/machine/" + m.id + "/" },
+        h("div", { class: "item-media" }, h("div", { class: "tile" }, ico("desk"))),
+        h("div", { class: "item-inner" },
+          h("div", { class: "item-title-row" },
+            h("div", { class: "item-title name" }, m.name),
+            h("div", { class: "item-after status-r" + (t ? " busy-t" : "") }, h("span", { class: "dot" + (t ? " busy" : on ? " on" : "") }), label)),
+          h("div", { class: "item-subtitle meta" }, meta)))))),
+    h("div", { class: "card-footer actions" }, acts));
 }
 function render() {
-  const list = $("#list");
-  if (!loaded) return list.replaceChildren();
+  const el = $("#list");
+  if (!loaded) return el.replaceChildren();
   $("#foot").hidden = !machines.length;
-  list.replaceChildren(...(machines.length
+  el.replaceChildren(...(machines.length
     ? machines.map(card)
-    : [h("div", { class: "group" }, h("button", { class: "item empty", onclick: () => machineSheet(null) }, h("div", { class: "txt" }, h("b", null, "Add your first machine"), "Tap to set up Wake-on-LAN")))]));
+    : [list(LIST, h("li", null, h("a", { class: "item-link item-content empty", href: "/machine/new/" },
+        h("div", { class: "item-inner" }, h("div", null, h("b", null, "Add your first machine"), h("div", { class: "sub" }, "Tap to set up Wake-on-LAN"))))))]));
 }
 async function wake(m) {
   T.set(m.id, { kind: "wake", start: Date.now() });
@@ -125,10 +216,9 @@ async function wake(m) {
 }
 function confirmPower(m, kind) {
   const down = kind === "shutdown";
-  confirmSheet((down ? "Shut Down " : "Restart ") + m.name + "?",
+  confirmDialog((down ? "Shut Down " : "Restart ") + m.name + "?",
     down ? "Unsaved work on " + m.name + " will be lost." : m.name + " will restart. Unsaved work will be lost.",
     down ? "Shut Down" : "Restart", down, async () => {
-      closeSheet();
       T.set(m.id, { kind, start: Date.now(), up: m.status && m.status.uptime });
       render(); schedule();
       try { await api("POST", "/machines/" + m.id + "/" + kind); } catch (e) { T.delete(m.id); fail(e); }
@@ -136,167 +226,175 @@ function confirmPower(m, kind) {
     });
 }
 
-/* ---------- sheets ---------- */
-function openSheet(...kids) {
-  closeSheet();
-  const dim = h("div", { class: "dim", onclick: closeSheet });
-  const s = h("div", { class: "sheet glass", role: "dialog", "aria-modal": "true" }, h("div", { class: "grab" }), kids);
-  $("#sheet-root").append(dim, s);
-  sheetEls = [dim, s];
-  return s;
-}
-function closeSheet() {
-  if (sheetEls) sheetEls.forEach((e) => e.remove());
-  sheetEls = null;
-  if (onClose) { const f = onClose; onClose = null; f(); }
-}
-document.addEventListener("keydown", (e) => e.key === "Escape" && closeSheet());
-const big = (text, fn, cls) => h("button", { class: "big " + (cls || ""), type: "button", onclick: fn }, text);
-const cancel = (fn) => big("Cancel", fn || closeSheet, "cancel");
-function confirmSheet(title, text, label, red, fn, back) {
-  openSheet(h("h3", null, title), h("p", null, text), big(label, fn, red ? "red" : ""), cancel(back));
-}
-async function copy(text, b) {
-  try { await navigator.clipboard.writeText(text); } catch {
-    const t = h("textarea", { readonly: true }, text);
-    t.style.cssText = "position:fixed;opacity:0";
-    document.body.append(t);
-    t.select(); t.setSelectionRange(0, 1e6);
-    try { document.execCommand("copy"); } catch {}
-    t.remove();
-  }
-  const o = b.textContent;
-  b.textContent = "Copied";
-  setTimeout(() => (b.textContent = o), 1500);
-}
-
-function machineSheet(m) {
+/* ---------- machine page ---------- */
+function machinePage(m) {
   const f = {}, rows = {};
   const inp = (k, label, ph, val, type, mode) => {
-    f[k] = h("input", { id: "f-" + k, type: type || "text", placeholder: ph, value: val == null ? "" : val, inputmode: mode, autocapitalize: "off", autocomplete: "off", autocorrect: "off", spellcheck: "false" });
-    return (rows[k] = h("div", { class: "row" }, h("label", { for: "f-" + k }, label), f[k]));
+    f[k] = h("input", { id: "f-" + k, name: k, type: type || "text", placeholder: ph, value: val == null ? "" : val, inputmode: mode, autocapitalize: "off", autocomplete: "off", autocorrect: "off", spellcheck: "false" });
+    return (rows[k] = h("li", { class: "item-content item-input" + (IOS ? "" : " item-input-outline") },
+      h("div", { class: "item-inner" },
+        h("div", { class: "item-title item-label" }, h("label", { for: "f-" + k }, label)),
+        h("div", { class: "item-input-wrap" }, f[k]))));
   };
-  const ag = h("input", { type: "checkbox", class: "sw", id: "f-agent" });
+  const ag = h("input", { type: "checkbox", id: "f-agent" });
   ag.checked = !!(m && m.agent);
-  const err = h("div", { class: "errmsg" });
-  const rIp = inp("ip", "IP", "192.168.1.20", m && m.ip, "text", "url");
+  const err = h("div", { class: "block errmsg" });
   // iOS numeric pads show the locale decimal separator (often ","), so use the
   // url keyboard (always has ".") and normalise any typed "," to ".".
   const dots = (el) => el.addEventListener("input", () => {
     if (el.value.includes(",")) el.value = el.value.replace(/,/g, ".");
   });
-  dots(f.ip);
+  const main = list(LIST + (IOS ? " zw-inline" : ""),
+    inp("name", "Name", "Desktop", m && m.name),
+    inp("mac", "MAC", "AA:BB:CC:DD:EE:FF", m && m.mac),
+    inp("ip", "IP", "192.168.1.20", m && m.ip, "text", "url"),
+    inp("broadcast", "Broadcast", "Default from IP", m && m.broadcast, "text", "url"));
+  dots(f.ip); dots(f.broadcast);
   f.ip.addEventListener("input", () => {
     const o = f.ip.value.trim().split(".");
     f.broadcast.placeholder = o.length === 4 ? o[0] + "." + o[1] + "." + o[2] + ".255" : "Default from IP";
   });
-  const save = big("Save", async () => {
-    Object.values(rows).forEach((r) => r.classList.remove("err"));
+  const agentList = list(LIST, h("li", { class: "item-content" }, h("div", { class: "item-inner" },
+    h("div", { class: "item-title" }, h("label", { for: "f-agent" }, "Has zerowol agent"), h("div", { class: "item-footer" }, "Needed for Restart and Shut Down")),
+    h("div", { class: "item-after" }, h("label", { class: "toggle toggle-init" }, ag, h("span", { class: "toggle-icon" }))))));
+  const adv = h("li", { class: "accordion-item" },
+    h("a", { class: "item-link item-content", href: "#" }, h("div", { class: "item-inner" }, h("div", { class: "item-title" }, "Advanced"))),
+    h("div", { class: "accordion-item-content" }, list(IOS ? "zw-inline" : "",
+      inp("wol_port", "WoL port", "9", m && m.wol_port, "number", "numeric"),
+      inp("probe_port", "Probe port", "22", m && m.probe_port, "number", "numeric"))));
+  const advList = list(LIST + " accordion-list", adv);
+
+  let busy = false;
+  async function save() {
+    if (busy) return;
+    Object.values(rows).forEach((r) => r.classList.remove("item-input-invalid"));
     err.textContent = "";
     const body = { name: f.name.value.trim(), mac: f.mac.value.trim(), ip: f.ip.value.trim(), agent: ag.checked };
     if (f.broadcast.value.trim()) body.broadcast = f.broadcast.value.trim();
     if (f.wol_port.value) body.wol_port = +f.wol_port.value;
     if (f.probe_port.value) body.probe_port = +f.probe_port.value;
-    save.disabled = true;
+    busy = true; saveBtn.classList.add("disabled"); saveLink.classList.add("disabled");
     try {
       const r = m ? await api("PATCH", "/machines/" + m.id, body) : await api("POST", "/machines", body);
-      closeSheet();
       refresh();
-      if (ag.checked && !(m && m.agent)) pairingSheet(r);
+      if (ag.checked && !(m && m.agent)) view.router.navigate("/machine/" + r.id + "/pair/", { reloadCurrent: true });
+      else view.router.back();
     } catch (e) {
-      save.disabled = false;
+      busy = false; saveBtn.classList.remove("disabled"); saveLink.classList.remove("disabled");
       const k = (/^invalid (name|mac|ip|broadcast|wol_port|probe_port)/.exec(e.message) || [])[1];
-      if (k && /port$/.test(k)) f[k].closest("details").open = true;
-      if (k) rows[k].classList.add("err");
-      err.textContent = e instanceof TypeError ? "Can't reach zerowol" : e.message.replace(/^./, (c) => c.toUpperCase());
+      if (k && /port$/.test(k)) app.accordion.open(adv);
+      if (k) rows[k].classList.add("item-input-invalid");
+      err.textContent = offlineMsg(e).replace(/^./, (c) => c.toUpperCase());
     }
-  });
-  const grp = [
-    h("div", { class: "group" },
-      inp("name", "Name", "Desktop", m && m.name),
-      inp("mac", "MAC", "AA:BB:CC:DD:EE:FF", m && m.mac),
-      rIp,
-      inp("broadcast", "Broadcast", "Default from IP", m && m.broadcast, "text", "url"),
-      h("div", { class: "row" }, h("div", { class: "grow" }, h("label", { for: "f-agent" }, "Has zerowol agent"), h("div", { class: "sub" }, "Needed for Restart and Shut Down")), ag)),
-    h("div", { class: "group" }, h("details", null, h("summary", null, "Advanced"),
-      inp("wol_port", "WoL port", "9", m && m.wol_port, "number", "numeric"),
-      inp("probe_port", "Probe port", "22", m && m.probe_port, "number", "numeric"))),
-  ];
-  dots(f.broadcast);
+  }
+  const saveLink = h("a", { class: "link", href: "#", onclick: (e) => { e.preventDefault(); save(); } }, "Save");
+  const saveBtn = bigBtn("Save", save);
+  const extra = [];
   if (m) {
-    const extra = [];
-    if (m.agent) extra.push(h("button", { class: "row link", type: "button", onclick: () => pairingSheet(m) }, "Agent install command"));
-    extra.push(h("button", { class: "row link red", type: "button", onclick: () => confirmSheet("Delete " + m.name + "?", "This removes the machine from zerowol. The PC itself is not touched.", "Delete", true, async () => {
-      try { await api("DELETE", "/machines/" + m.id); T.delete(m.id); closeSheet(); refresh(); } catch (e) { fail(e); }
-    }, () => machineSheet(m)) }, "Delete Machine"));
-    grp.push(h("div", { class: "group" }, extra));
+    const items = [];
+    if (m.agent) items.push(linkItem("Agent install command", () => go("/machine/" + m.id + "/pair/")));
+    items.push(linkItem("Delete Machine", () => confirmDialog("Delete " + m.name + "?", "This removes the machine from zerowol. The PC itself is not touched.", "Delete", true, async () => {
+      try { await api("DELETE", "/machines/" + m.id); T.delete(m.id); refresh(); view.router.back(); } catch (e) { fail(e); }
+    }), "color-red"));
+    extra.push(list(LIST, items));
   }
   f.ip.dispatchEvent(new Event("input"));
-  openSheet(h("h3", null, m ? "Edit Machine" : "Add Machine"), grp, err, save, cancel());
+  const form = h("form", { onsubmit: (e) => { e.preventDefault(); save(); } }, main, agentList, advList, h("button", { type: "submit", hidden: true }));
+  return page("machine", m ? "Edit Machine" : "Add Machine", saveLink,
+    form, err, h("div", { class: "block" }, saveBtn), extra);
 }
 
-async function pairingSheet(m, rotate) {
+/* ---------- pairing page ---------- */
+function pairingPage(m, rotate) {
   let alive = true;
   const cmd = h("div", { class: "code" }, "…");
   const wait = h("span", null, "Waiting for agent…");
   const st = h("div", { class: "pair" }, h("span", { class: "dot busy" }), wait);
-  const cp = big("Copy", () => copy(cmd.textContent, cp));
-  openSheet(h("h3", null, "Pair " + m.name), h("p", null, "Run this command on " + m.name + " (Linux)."), cmd, cp, st,
-    big("Regenerate secret", () => confirmSheet("Regenerate secret?", "The installed agent will stop working until you run the new command.", "Regenerate", true, () => pairingSheet(m, true), () => pairingSheet(m)), "cancel"),
-    big("Done", closeSheet, "cancel"));
-  onClose = () => { alive = false; };
-  try {
-    cmd.textContent = (await api(rotate ? "POST" : "GET", "/machines/" + m.id + "/agent/" + (rotate ? "rotate" : "install-command"))).install_command;
-  } catch (e) { fail(e); }
-  while (alive) {
-    await sleep(2000);
+  const cp = bigBtn("Copy", () => copy(cmd.textContent, cp));
+  const done = h("a", { class: "link back", href: "#" }, "Done");
+  const el = page("pair", "Pair " + m.name, done,
+    blockTitle("Install command"),
+    h("div", { class: "block block-strong inset" },
+      h("p", null, "Run this command on " + m.name + " (Linux)."), cmd, h("div", { class: "pair-btn" }, cp), st),
+    list(LIST, linkItem("Regenerate secret", () => confirmDialog("Regenerate secret?", "The installed agent will stop working until you run the new command.", "Regenerate", true,
+      () => view.router.navigate("/machine/" + m.id + "/pair/?rotate=1", { reloadCurrent: true })), "color-red")),
+    footer("Regenerating invalidates the secret the agent currently uses."));
+  onRemove(el, () => { alive = false; });
+  (async () => {
     try {
-      const s = await api("GET", "/machines/" + m.id + "/status");
-      if (alive && s.agent !== "paired") wait.textContent = s.agent_error ? "Agent: " + s.agent_error : "Waiting for agent…";
-      if (alive && s.agent === "paired") {
-        st.className = "pair ok";
-        st.replaceChildren("Paired ✓");
-        refresh();
-        return;
-      }
-    } catch {}
-  }
+      cmd.textContent = (await api(rotate ? "POST" : "GET", "/machines/" + m.id + "/agent/" + (rotate ? "rotate" : "install-command"))).install_command;
+    } catch (e) { fail(e); }
+    while (alive) {
+      await sleep(2000);
+      try {
+        const s = await api("GET", "/machines/" + m.id + "/status");
+        if (alive && s.agent !== "paired") wait.textContent = s.agent_error ? "Agent: " + s.agent_error : "Waiting for agent…";
+        if (alive && s.agent === "paired") {
+          st.className = "pair ok";
+          st.replaceChildren("Paired ✓");
+          refresh();
+          return;
+        }
+      } catch {}
+    }
+  })();
+  return el;
 }
 
-async function settingsSheet(shown) {
+/* ---------- settings page ---------- */
+function settingsPage() {
   const box = h("div");
-  const nameIn = h("input", { type: "text", style: "text-align:left", placeholder: "Token name", autocapitalize: "off", autocomplete: "off", maxlength: 64 });
+  const nameIn = h("input", { type: "text", placeholder: "Token name", autocapitalize: "off", autocomplete: "off", maxlength: 64 });
   const date = (s) => new Date(s * 1000).toLocaleDateString();
   async function load(newTok) {
     let toks = [];
     try { toks = await api("GET", "/tokens"); } catch (e) { fail(e); }
+    const create = async () => {
+      try { const r = await api("POST", "/tokens", { name: nameIn.value.trim() }); nameIn.value = ""; load(r); } catch (e) { fail(e); }
+    };
     box.replaceChildren(...[
-      newTok && h("div", { class: "group", style: "padding:12px 16px" },
-        h("div", { class: "small", style: "margin:0" }, "Copy " + newTok.name + " now. It won't be shown again."),
+      newTok && h("div", { class: "block block-strong inset new-token" },
+        h("p", null, "Copy " + newTok.name + " now. It won't be shown again."),
         h("div", { class: "code" }, newTok.token),
-        big("Copy", function () { copy(newTok.token, this); })),
-      h("div", { class: "group" }, toks.map((t) => h("div", { class: "row" },
-        h("div", { class: "grow" }, h("div", { style: "overflow:hidden;text-overflow:ellipsis" }, t.name), h("div", { class: "sub" }, "Created " + date(t.created) + " · " + (t.last_used ? "Used " + date(t.last_used) : "Never used"))),
-        h("button", { class: "row link red", style: "width:auto;padding:0", type: "button", onclick: () => confirmSheet("Revoke " + t.name + "?", "Anything using this token will stop working.", "Revoke", true, async () => {
-          try { await api("DELETE", "/tokens/" + t.id); } catch (e) { fail(e); }
-          settingsSheet();
-        }, () => settingsSheet()) }, "Revoke"))),
-        h("div", { class: "row" }, nameIn, h("button", { class: "row link", style: "width:auto;padding:0;justify-content:flex-end", type: "button", onclick: async () => {
-          try { const r = await api("POST", "/tokens", { name: nameIn.value.trim() }); nameIn.value = ""; load(r); } catch (e) { fail(e); }
-        } }, "Create")))].filter(Boolean));
+        h("div", { class: "pair-btn" }, bigBtn("Copy", function () { copy(newTok.token, this); }))),
+      list(LIST,
+        toks.map((t) => h("li", { class: "item-content" }, h("div", { class: "item-inner" },
+          h("div", { class: "item-title" }, t.name, h("div", { class: "item-footer" }, "Created " + date(t.created) + " · " + (t.last_used ? "Used " + date(t.last_used) : "Never used"))),
+          h("div", { class: "item-after" }, h("a", { class: "link color-red", href: "#", onclick: (e) => {
+            e.preventDefault();
+            confirmDialog("Revoke " + t.name + "?", "Anything using this token will stop working.", "Revoke", true, async () => {
+              try { await api("DELETE", "/tokens/" + t.id); } catch (e) { fail(e); }
+              load();
+            });
+          } }, "Revoke"))))),
+        h("li", { class: "item-content item-input token-row" }, h("div", { class: "item-inner" },
+          h("div", { class: "item-input-wrap" }, nameIn),
+          h("div", { class: "item-after" }, h("a", { class: "link", href: "#", onclick: (e) => { e.preventDefault(); create(); } }, "Create")))))].filter(Boolean));
   }
-  openSheet(h("h3", null, "Settings"),
-    h("div", { class: "h" }, "API Tokens"), box,
-    h("p", { class: "small" }, "Tokens let scripts call the API with Authorization: Bearer."),
-    h("div", { class: "h" }, "About"),
-    h("div", { class: "group" },
-      h("div", { class: "row" }, h("div", { class: "grow" }, "Version"), h("span", { class: "sub" }, VERSION)),
-      h("a", { class: "row link", href: REPO, target: "_blank", rel: "noopener", style: "text-decoration:none" }, "zerowol on GitHub")),
-    big("Done", closeSheet, "cancel"));
-  await load(shown);
+  nameIn.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); e.target.closest("li").querySelector(".link").click(); } });
+
+  const pref = themePref();
+  const radio = (value, title, sub) => h("li", null, h("label", { class: "item-radio item-radio-icon-start item-content" },
+    h("input", { type: "radio", name: "zw-theme", value, checked: pref === value, onchange: () => {
+      try { if (value === "auto") localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, value); } catch {}
+      location.reload();
+    } }),
+    h("i", { class: "icon icon-radio" }),
+    h("div", { class: "item-inner" }, h("div", { class: "item-title" }, title, sub ? h("div", { class: "item-footer" }, sub) : null))));
+  const el = page("settings", "Settings", null,
+    blockTitle("Appearance"),
+    list(LIST, radio("auto", "Automatic", "Match this device"), radio("ios", "iOS"), radio("md", "Android")),
+    blockTitle("API Tokens"), box,
+    footer("Tokens let scripts call the API with Authorization: Bearer."),
+    blockTitle("About"),
+    list(LIST,
+      h("li", { class: "item-content" }, h("div", { class: "item-inner" }, h("div", { class: "item-title" }, "Version"), h("div", { class: "item-after" }, VERSION))),
+      h("li", null, h("a", { class: "item-link item-content external", href: REPO, target: "_blank", rel: "noopener" }, h("div", { class: "item-inner" }, h("div", { class: "item-title" }, "zerowol on GitHub"))))));
+  load();
+  return el;
 }
 
-$("#add").addEventListener("click", () => machineSheet(null));
-$("#gear").addEventListener("click", () => settingsSheet());
+/* ---------- boot ---------- */
+$(".page[data-name=home]").addEventListener("page:reinit", refresh);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 refresh();

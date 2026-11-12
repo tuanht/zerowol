@@ -121,6 +121,8 @@ make smoke    # end-to-end test: server + agent on loopback (uses port 9009)
 
 The toolchain (Rust 1.99.1 with the musl targets) is pinned by `rust-toolchain.toml`. For an arm64 NAS: `docker buildx build --platform linux/arm64 -t zerowol:latest .`.
 
+The web UI is built on a vendored, trimmed [Framework7](https://framework7.io) bundle (MIT, see `crates/zerowol/web/vendor/FRAMEWORK7-LICENSE`) embedded into the binary; regenerate it with `scripts/build-f7.sh`. The theme automatically matches iOS or Android (Material) based on the device, and can be overridden in Settings.
+
 ## Screenshots
 
 Screenshots are not committed. Generate them against a throwaway instance (the script deletes all machines on its target):
