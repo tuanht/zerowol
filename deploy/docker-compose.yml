@@ -1,0 +1,39 @@
+# zerowol — deploy with the prebuilt image from GHCR (linux/amd64 and linux/arm64).
+#
+#   mkdir zerowol && cd zerowol
+#   curl -fsSLO https://raw.githubusercontent.com/tuanht/zerowol/master/deploy/docker-compose.yml
+#   mkdir -p data && sudo chown 1026:100 data   # or set PUID/PGID to the owner of ./data
+#   docker compose up -d
+#
+# Then open http://<nas-ip>:8090/. LAN/Tailscale only: never forward this port.
+#
+# Image tags:
+#   latest        newest stable release
+#   1 / 1.2       newest release in that major / minor line
+#   1.2.3         an exact release (recommended for pinning)
+#   edge          latest build of master (may be unstable)
+#   sha-<commit>  one specific build of master
+services:
+  zerowol:
+    image: ghcr.io/tuanht/zerowol:${ZEROWOL_TAG:-latest}
+    container_name: zerowol
+    restart: unless-stopped
+    # Host networking is required to send Wake-on-LAN broadcasts to the LAN.
+    network_mode: host
+    user: "${PUID:-1026}:${PGID:-100}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - ./data:/data
+    environment:
+      ZEROWOL_PORT: "8090"
+      ZEROWOL_BIND: "0.0.0.0"
+      ZEROWOL_REQUIRE_TOKEN: "false"
+      TZ: ${TZ:-UTC}
+    healthcheck:
+      test: ["CMD", "/zerowol", "healthcheck"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+    mem_limit: 32m

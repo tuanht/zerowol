@@ -11,18 +11,28 @@ A tiny Wake-on-LAN and remote shutdown server for your NAS, with a mobile-first 
 
 ## Quick start
 
-Requires Docker with Compose. The compose file uses the `prebuilt` image target, so build the binary once first (see [Building](#building)):
+Requires Docker with Compose. Prebuilt images for `linux/amd64` and `linux/arm64` are published to GHCR as `ghcr.io/tuanht/zerowol`:
 
 ```sh
-git clone https://github.com/<owner>/zerowol && cd zerowol
-make dist                      # needs zig and cargo-zigbuild; produces dist/zerowol
+mkdir zerowol && cd zerowol
+curl -fsSLO https://raw.githubusercontent.com/tuanht/zerowol/master/deploy/docker-compose.yml
 mkdir -p data && sudo chown 1026:100 data   # or set PUID/PGID to your user
-docker compose up -d --build
+docker compose up -d
 ```
 
 Open `http://<nas-ip>:8090/`. The container runs with host networking (needed to send WoL broadcasts), read-only root, no capabilities, and a 32 MB memory limit. State lives in `./data/state.json`.
 
-To build everything inside Docker instead of on your PC, use `docker build -t zerowol:latest .` (the default `runtime` stage).
+| Tag | Meaning |
+|---|---|
+| `latest` | newest stable release |
+| `X.Y.Z` | an exact release (recommended for pinning: `ZEROWOL_TAG=0.1.0 docker compose up -d`) |
+| `X.Y`, `X` | newest release in that minor / major line |
+| `edge` | latest build of `master` |
+| `sha-<commit>` | one specific build of `master` |
+
+Update with `docker compose pull && docker compose up -d`. Each release on GitHub also carries static server binaries for both architectures.
+
+To build from source instead, the repository's own [`docker-compose.yml`](docker-compose.yml) uses the `prebuilt` image target (run `make dist` first, see [Building](#building), then `docker compose up -d --build`), or `docker build -t zerowol:latest .` builds everything inside Docker (the default `runtime` stage).
 
 ### Server settings
 
@@ -119,7 +129,17 @@ make image    # docker build -t zerowol:latest .
 make smoke    # end-to-end test: server + agent on loopback (uses port 9009)
 ```
 
-The toolchain (Rust 1.99.1 with the musl targets) is pinned by `rust-toolchain.toml`. For an arm64 NAS: `docker buildx build --platform linux/arm64 -t zerowol:latest .`.
+The toolchain (Rust 1.99.1 with the musl targets) is pinned by `rust-toolchain.toml`. For an arm64 NAS: `docker buildx build --platform linux/arm64 -t zerowol:latest .` (the builder cross-compiles natively, no QEMU needed).
+
+### Releases
+
+`.github/workflows/release.yml` publishes multi-arch images to GHCR: every push to `master` updates `edge` and `sha-<commit>`; pushing a tag `vX.Y.Z` (which must match the workspace `version` in `Cargo.toml`) publishes `X.Y.Z`, `X.Y`, `X` and `latest` and creates a GitHub release with binaries and `SHA256SUMS`. Pre-release tags such as `v0.2.0-rc.1` get only their exact tag and never move `latest`.
+
+```sh
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+GHCR packages start private. After the first publish, make the package public under the repository's Packages settings on GitHub.
 
 The web UI is built on a vendored, trimmed [Framework7](https://framework7.io) bundle (MIT, see `crates/zerowol/web/vendor/FRAMEWORK7-LICENSE`) embedded into the binary; regenerate it with `scripts/build-f7.sh`. The theme automatically matches iOS or Android (Material) based on the device, and can be overridden in Settings.
 
