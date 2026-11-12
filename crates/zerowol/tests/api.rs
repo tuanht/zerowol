@@ -316,7 +316,13 @@ async fn rotate_changes_secret() {
         None,
     )
     .await;
-    assert_eq!((c, b), (200, json!({"ok":true})));
+    assert_eq!(c, 200);
+    assert!(
+        b["install_command"]
+            .as_str()
+            .unwrap()
+            .contains(&format!("/agent/install/{id}.sh"))
+    );
     assert_ne!(agent_secret(&s, &id), old);
 }
 

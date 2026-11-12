@@ -1,6 +1,7 @@
 use crate::agent_client::{self, AgentError};
 use crate::app::{ApiError, AppState, JsonBody};
 use crate::auth::Source;
+use crate::install;
 use crate::model::{
     AgentCfg, Machine, default_broadcast, format_mac, new_id, new_secret, parse_mac,
 };
@@ -8,7 +9,7 @@ use crate::status::{self, Status};
 use crate::wol;
 use axum::Json;
 use axum::extract::{Extension, Path, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -340,9 +341,10 @@ pub async fn reboot(
 pub async fn rotate(
     State(state): State<AppState>,
     Extension(source): Extension<Source>,
+    headers: HeaderMap,
     Path(id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    let name = state.store.update(|st| {
+    let m = state.store.update(|st| {
         let m = st
             .machines
             .iter_mut()
@@ -353,8 +355,26 @@ pub async fn rotate(
             .as_mut()
             .ok_or_else(|| ApiError(StatusCode::CONFLICT, "no agent".into()))?;
         a.secret = new_secret();
-        Ok::<_, ApiError>(m.name.clone())
+        Ok::<_, ApiError>(m.clone())
     })?;
-    log("rotate", &name, &source, "ok");
-    Ok(Json(json!({"ok":true})))
+    log("rotate", &m.name, &source, "ok");
+    let (host, _) = install::host_for(&state, &headers, &m);
+    Ok(Json(
+        json!({"install_command": install::install_command(&host, &m.id)}),
+    ))
+}
+
+pub async fn install_command(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let m = find(&state, &id)?;
+    if m.agent.is_none() {
+        return Err(ApiError(StatusCode::CONFLICT, "no agent".into()));
+    }
+    let (host, _) = install::host_for(&state, &headers, &m);
+    Ok(Json(
+        json!({"install_command": install::install_command(&host, &m.id)}),
+    ))
 }

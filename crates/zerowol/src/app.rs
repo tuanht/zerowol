@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::store::{Store, StoreError};
-use crate::{api_machines, api_tokens, auth};
+use crate::{api_machines, api_tokens, auth, install};
 use axum::Json;
 use axum::Router;
 use axum::http::StatusCode;
@@ -56,6 +56,10 @@ pub fn router(state: AppState) -> Router {
         .route("/machines/{id}/shutdown", post(api_machines::shutdown))
         .route("/machines/{id}/reboot", post(api_machines::reboot))
         .route("/machines/{id}/agent/rotate", post(api_machines::rotate))
+        .route(
+            "/machines/{id}/agent/install-command",
+            get(api_machines::install_command),
+        )
         .route("/tokens", get(api_tokens::list).post(api_tokens::create))
         .route("/tokens/{id}", delete(api_tokens::delete))
         .fallback(api_not_found)
@@ -65,6 +69,8 @@ pub fn router(state: AppState) -> Router {
         ));
     Router::new()
         .route("/healthz", get(healthz))
+        .route("/agent/install/{file}", get(install::script))
+        .route("/agent/bin/{arch}", get(install::bin))
         .nest("/api/v1", api)
         .with_state(state)
 }

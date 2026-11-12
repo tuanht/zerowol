@@ -4,6 +4,7 @@ pub mod api_tokens;
 pub mod app;
 pub mod auth;
 pub mod config;
+pub mod install;
 pub mod model;
 pub mod probe;
 pub mod status;
