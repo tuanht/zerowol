@@ -58,3 +58,12 @@
 .dark .toast-bad .toast-text{color:#ff8a80}
 .token-row .item-inner{flex-direction:row!important;align-items:center;gap:12px}
 .token-row .item-input-wrap{flex:1;min-width:0}
+
+/* iOS navbar back pill: F7's liquid-glass inner shadow looks muddy; keep the
+   glass fill with a soft outer shadow and hairline edge instead. */
+.ios .navbar .left,.ios .navbar .right{box-shadow:0 2px 10px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.08)}
+.ios.dark .navbar .left,.ios.dark .navbar .right,.ios .dark .navbar .left,.ios .dark .navbar .right{box-shadow:0 2px 10px rgba(0,0,0,.4),0 0 0 .5px rgba(255,255,255,.12)}
+
+/* primary buttons: fully rounded; action blocks align with the inset cards/lists */
+.button-large.button-fill{border-radius:999px;height:50px;font-weight:600;text-transform:none}
+.page-content>.block.zw-actions{padding-left:0;padding-right:0}

@@ -6,6 +6,7 @@ const BUSY = { wake: "Waking…", shutdown: "Shutting down…", reboot: "Restart
 const HINT = " Check journalctl -u zerowol-agent on the PC.";
 const FAIL = { wake: "Didn't come online", shutdown: "Didn't shut down." + HINT, reboot: "Didn't restart." + HINT };
 const THEME_KEY = "zw-theme"; // "auto" | "ios" | "md"
+const SCHEME_KEY = "zw-scheme"; // "auto" | "light" | "dark"
 const $ = (s, root) => (root || document).querySelector(s);
 const T = new Map(); // machine id -> {kind, start, off}
 let machines = [], loaded = false, timer = 0;
@@ -37,11 +38,29 @@ function themePref() {
   try { const v = localStorage.getItem(THEME_KEY); if (v === "ios" || v === "md") return v; } catch {}
   return "auto";
 }
+function schemePref() {
+  try { const v = localStorage.getItem(SCHEME_KEY); if (v === "light" || v === "dark") return v; } catch {}
+  return "auto";
+}
+function store(key, v) {
+  try { if (v === "auto") localStorage.removeItem(key); else localStorage.setItem(key, v); } catch {}
+}
+const darkParam = () => ({ light: false, dark: true })[schemePref()] ?? "auto";
+function applyScheme() {
+  app.setDarkMode(darkParam());
+  // Keep the browser chrome (status bar / address bar) in step with the forced scheme.
+  const sp = schemePref();
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
+    if (!m.dataset.media) m.dataset.media = m.getAttribute("media") || "";
+    if (sp === "auto") m.setAttribute("media", m.dataset.media);
+    else m.setAttribute("media", m.dataset.media.includes(sp) ? "all" : "not all");
+  });
+}
 const app = new Framework7({
   el: "#app",
   name: "zerowol",
   theme: themePref(),
-  darkMode: "auto",
+  darkMode: darkParam(),
   colors: { primary: "#007aff" },
   touch: { tapHold: false },
   routes: [
@@ -53,6 +72,7 @@ const app = new Framework7({
 });
 const IOS = app.theme === "ios";
 document.documentElement.classList.add(IOS ? "zw-ios" : "zw-md");
+applyScheme();
 // Hash-based history gives Android a working system back button. iOS keeps it
 // off: Safari's own edge swipe would fight Framework7's swipe-back.
 if (location.hash) history.replaceState(null, "", location.pathname + location.search);
@@ -279,7 +299,7 @@ function machinePage(m) {
     if (f.broadcast.value.trim()) body.broadcast = f.broadcast.value.trim();
     if (f.wol_port.value) body.wol_port = +f.wol_port.value;
     if (f.probe_port.value) body.probe_port = +f.probe_port.value;
-    busy = true; saveBtn.classList.add("disabled"); saveLink.classList.add("disabled");
+    busy = true; saveBtn.classList.add("disabled");
     try {
       const r = m ? await api("PATCH", "/machines/" + m.id, body) : await api("POST", "/machines", body);
       await refresh();
@@ -288,14 +308,13 @@ function machinePage(m) {
       if (ag.checked && !(m && m.agent)) view.router.navigate("/machine/" + r.id + "/pair/", { reloadCurrent: true });
       else view.router.back();
     } catch (e) {
-      busy = false; saveBtn.classList.remove("disabled"); saveLink.classList.remove("disabled");
+      busy = false; saveBtn.classList.remove("disabled");
       const k = (/^invalid (name|mac|ip|broadcast|wol_port|probe_port)/.exec(e.message) || [])[1];
       if (k && /port$/.test(k)) app.accordion.open(adv);
       if (k) rows[k].classList.add("item-input-invalid");
       err.textContent = offlineMsg(e).replace(/^./, (c) => c.toUpperCase());
     }
   }
-  const saveLink = h("a", { class: "link", href: "#", onclick: (e) => { e.preventDefault(); save(); } }, "Save");
   const saveBtn = bigBtn("Save", save);
   const extra = [];
   if (m) {
@@ -313,8 +332,8 @@ function machinePage(m) {
   }
   f.ip.dispatchEvent(new Event("input"));
   const form = h("form", { onsubmit: (e) => { e.preventDefault(); save(); } }, main, agentList, advList, h("button", { type: "submit", hidden: true }));
-  const pageEl = page("machine", m ? "Edit Machine" : "Add Machine", saveLink,
-    form, err, h("div", { class: "block" }, saveBtn), extra);
+  const pageEl = page("machine", m ? "Edit Machine" : "Add Machine", null,
+    form, err, h("div", { class: "block zw-actions" }, saveBtn), extra);
   return pageEl;
 }
 
@@ -397,17 +416,24 @@ function settingsPage() {
   }
   nameIn.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); e.target.closest("li").querySelector(".link").click(); } });
 
-  const pref = themePref();
-  const radio = (value, title, sub) => h("li", null, h("label", { class: "item-radio item-radio-icon-start item-content" },
-    h("input", { type: "radio", name: "zw-theme", value, checked: pref === value, onchange: () => {
-      try { if (value === "auto") localStorage.removeItem(THEME_KEY); else localStorage.setItem(THEME_KEY, value); } catch {}
-      location.reload();
-    } }),
+  const radio = (group, current, value, title, sub, apply) => h("li", null, h("label", { class: "item-radio item-radio-icon-start item-content" },
+    h("input", { type: "radio", name: group, value, checked: current === value, onchange: () => apply(value) }),
     h("i", { class: "icon icon-radio" }),
     h("div", { class: "item-inner" }, h("div", { class: "item-title" }, title, sub ? h("div", { class: "item-footer" }, sub) : null))));
+  const setTheme = (v) => { store(THEME_KEY, v); location.reload(); };
+  const setScheme = (v) => { store(SCHEME_KEY, v); applyScheme(); };
+  const tp = themePref(), sp = schemePref();
   const el = page("settings", "Settings", null,
+    blockTitle("Theme"),
+    list(LIST,
+      radio("zw-theme", tp, "auto", "Automatic", "Match this device", setTheme),
+      radio("zw-theme", tp, "ios", "iOS", null, setTheme),
+      radio("zw-theme", tp, "md", "Android", null, setTheme)),
     blockTitle("Appearance"),
-    list(LIST, radio("auto", "Automatic", "Match this device"), radio("ios", "iOS"), radio("md", "Android")),
+    list(LIST,
+      radio("zw-scheme", sp, "auto", "Automatic", "Follow system light/dark setting", setScheme),
+      radio("zw-scheme", sp, "light", "Light", null, setScheme),
+      radio("zw-scheme", sp, "dark", "Dark", null, setScheme)),
     blockTitle("API Tokens"), box,
     footer("Tokens let scripts call the API with Authorization: Bearer."),
     blockTitle("About"),

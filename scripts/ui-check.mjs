@@ -89,6 +89,14 @@ for (const [theme, device] of [["ios", "iPhone 15"], ["md", "Pixel 7"]]) {
   await page.waitForSelector(".page[data-name=settings]");
   await Promise.all([page.waitForEvent("load"), page.click('input[value="md"] + .icon-radio')]);
   if ((await page.evaluate(() => app.theme)) !== "md") fail("forced md theme on iPhone");
+  // Light/dark override applies live and survives a reload.
+  await page.click("#gear");
+  await page.waitForSelector(".page[data-name=settings]");
+  await page.click('input[value="dark"] + .icon-radio');
+  if (!(await page.evaluate(() => document.documentElement.classList.contains("dark")))) fail("forced dark scheme");
+  await page.reload();
+  if (!(await page.evaluate(() => document.documentElement.classList.contains("dark")))) fail("dark scheme after reload");
+  await page.evaluate(() => { localStorage.removeItem("zw-scheme"); });
   await page.evaluate(() => localStorage.removeItem("zw-theme"));
   await page.reload();
   if ((await page.evaluate(() => app.theme)) !== "ios") fail("auto theme restored on iPhone");
