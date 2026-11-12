@@ -179,7 +179,13 @@ function machineSheet(m) {
   const ag = h("input", { type: "checkbox", class: "sw", id: "f-agent" });
   ag.checked = !!(m && m.agent);
   const err = h("div", { class: "errmsg" });
-  const rIp = inp("ip", "IP", "192.168.1.20", m && m.ip, "text", "decimal");
+  const rIp = inp("ip", "IP", "192.168.1.20", m && m.ip, "text", "url");
+  // iOS numeric pads show the locale decimal separator (often ","), so use the
+  // url keyboard (always has ".") and normalise any typed "," to ".".
+  const dots = (el) => el.addEventListener("input", () => {
+    if (el.value.includes(",")) el.value = el.value.replace(/,/g, ".");
+  });
+  dots(f.ip);
   f.ip.addEventListener("input", () => {
     const o = f.ip.value.trim().split(".");
     f.broadcast.placeholder = o.length === 4 ? o[0] + "." + o[1] + "." + o[2] + ".255" : "Default from IP";
@@ -210,12 +216,13 @@ function machineSheet(m) {
       inp("name", "Name", "Desktop", m && m.name),
       inp("mac", "MAC", "AA:BB:CC:DD:EE:FF", m && m.mac),
       rIp,
-      inp("broadcast", "Broadcast", "Default from IP", m && m.broadcast),
+      inp("broadcast", "Broadcast", "Default from IP", m && m.broadcast, "text", "url"),
       h("div", { class: "row" }, h("div", { class: "grow" }, h("label", { for: "f-agent" }, "Has zerowol agent"), h("div", { class: "sub" }, "Needed for Restart and Shut Down")), ag)),
     h("div", { class: "group" }, h("details", null, h("summary", null, "Advanced"),
       inp("wol_port", "WoL port", "9", m && m.wol_port, "number", "numeric"),
       inp("probe_port", "Probe port", "22", m && m.probe_port, "number", "numeric"))),
   ];
+  dots(f.broadcast);
   if (m) {
     const extra = [];
     if (m.agent) extra.push(h("button", { class: "row link", type: "button", onclick: () => pairingSheet(m) }, "Agent install command"));
