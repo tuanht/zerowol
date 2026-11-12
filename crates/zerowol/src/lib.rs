@@ -2,6 +2,7 @@ pub mod agent_client;
 pub mod api_machines;
 pub mod api_tokens;
 pub mod app;
+pub mod assets;
 pub mod auth;
 pub mod config;
 pub mod install;

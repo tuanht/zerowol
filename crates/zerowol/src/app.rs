@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::store::{Store, StoreError};
-use crate::{api_machines, api_tokens, auth, install};
+use crate::{api_machines, api_tokens, assets, auth, install};
 use axum::Json;
 use axum::Router;
 use axum::http::StatusCode;
@@ -72,6 +72,7 @@ pub fn router(state: AppState) -> Router {
         .route("/agent/install/{file}", get(install::script))
         .route("/agent/bin/{arch}", get(install::bin))
         .nest("/api/v1", api)
+        .fallback(assets::serve)
         .with_state(state)
 }
 
