@@ -290,6 +290,11 @@ pub async fn wake(
         return Ok(Json(json!({"result":"already online"})));
     }
     let mac = parse_mac(&m.mac).map_err(|_| bad("invalid mac"))?;
+    #[cfg(feature = "dev-fakes")]
+    if crate::fake::wake(&m).is_some() {
+        log("wake", &m.name, &source, "sent (simulated)");
+        return Ok(Json(json!({"result":"sent"})));
+    }
     match wol::send(mac, m.broadcast, m.wol_port).await {
         Ok(()) => {
             log("wake", &m.name, &source, "sent");
@@ -326,7 +331,15 @@ async fn power(
         }
         lim.insert(m.id.clone(), t);
     }
-    match agent_client::power(m.ip, agent.port, &agent.secret, action).await {
+    #[cfg(feature = "dev-fakes")]
+    let sim = crate::fake::power(&m, action);
+    #[cfg(not(feature = "dev-fakes"))]
+    let sim = None;
+    let res = match sim {
+        Some(r) => r,
+        None => agent_client::power(m.ip, agent.port, &agent.secret, action).await,
+    };
+    match res {
         Ok(()) => {
             log(name, &m.name, &source, "accepted");
             Ok((StatusCode::ACCEPTED, Json(json!({"result":"accepted"}))))

@@ -5,6 +5,8 @@ pub mod app;
 pub mod assets;
 pub mod auth;
 pub mod config;
+#[cfg(feature = "dev-fakes")]
+pub mod fake;
 pub mod install;
 pub mod model;
 pub mod probe;
