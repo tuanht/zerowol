@@ -184,7 +184,9 @@ jobs:
       - uses: snok/container-retention-policy@v3.0.0
         if: ${{ env.PRUNE_TOKEN != '' }}
         with:
-          account: ${{ github.repository_owner }}
+          # "user" for a personal account; the action otherwise calls the
+          # organization endpoints and gets a 404. Use the org name for an org.
+          account: user
           token: ${{ env.PRUNE_TOKEN }}
           image-names: ${{ github.event.repository.name }}
           tag-selection: both
