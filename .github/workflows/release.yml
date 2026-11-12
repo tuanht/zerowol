@@ -145,18 +145,30 @@ jobs:
           gh release create "$GITHUB_REF_NAME" release/* \
             --title "$GITHUB_REF_NAME" --generate-notes --notes "$notes" $prerelease
 
-  # Retention: keep the 5 newest GHCR image versions plus the 3 newest stable releases. The action treats
-  # a multi-arch manifest and its per-platform children as one image, so
-  # pruning never leaves a kept tag pointing at deleted layers.
+  # Retention for GHCR. One build is 5 versions (the tagged multi-arch index,
+  # two per-platform images and two unknown/unknown attestation manifests), and
+  # the action keeps an index together with its children, so it is safe to
+  # prune; keep-n-most-recent counts versions, so 15 is about the last 3 builds.
+  # The 3 newest stable releases (X.Y.Z tags) are always kept.
+  #
+  # Needs a classic PAT with delete:packages in the GHCR_PRUNE_TOKEN secret:
+  # the action rejects the workflow's GITHUB_TOKEN. Until the secret exists the
+  # job is skipped. It runs as a dry run (logs what it would delete) until the
+  # repository variable PRUNE_DRY_RUN is set to "false".
   prune-images:
     needs: image
     runs-on: ubuntu-latest
     permissions:
-      packages: write
+      packages: read
+    env:
+      PRUNE_TOKEN: ${{ secrets.GHCR_PRUNE_TOKEN }}
     steps:
-      # The 3 newest stable releases (X.Y.Z tags, the ones that carried
-      # :latest) are exempt from pruning, even if they fall outside the 5 newest.
+      - name: Skip when GHCR_PRUNE_TOKEN is not configured
+        if: ${{ env.PRUNE_TOKEN == '' }}
+        run: echo "::warning::GHCR_PRUNE_TOKEN is not set; skipping image pruning"
+
       - id: stable
+        if: ${{ env.PRUNE_TOKEN != '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OWNER: ${{ github.repository_owner }}
@@ -170,11 +182,13 @@ jobs:
           echo "shas=$shas" >> "$GITHUB_OUTPUT"
 
       - uses: snok/container-retention-policy@v3.0.0
+        if: ${{ env.PRUNE_TOKEN != '' }}
         with:
           account: ${{ github.repository_owner }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ env.PRUNE_TOKEN }}
           image-names: ${{ github.event.repository.name }}
           tag-selection: both
-          keep-n-most-recent: 5
+          keep-n-most-recent: 15
           cut-off: 1h
           skip-shas: ${{ steps.stable.outputs.shas }}
+          dry-run: ${{ vars.PRUNE_DRY_RUN != 'false' }}
