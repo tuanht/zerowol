@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use std::net::Ipv4Addr;
 use std::time::Duration;
