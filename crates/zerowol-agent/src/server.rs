@@ -80,7 +80,8 @@ struct Request {
     body: Vec<u8>,
 }
 
-/// Parse an HTTP request. `Err(None)` = I/O failure (just drop), `Err(Some)` = 400.
+/// Parse an HTTP request. Any failure (I/O error, malformed or oversized
+/// request) returns `Err(())`; the caller just closes the connection.
 fn read_request(s: &mut TcpStream) -> Result<Request, ()> {
     let mut buf = Vec::new();
     let mut chunk = [0u8; 1024];

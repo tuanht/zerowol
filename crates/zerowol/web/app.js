@@ -3,7 +3,8 @@ const VERSION = "__VERSION__";
 const REPO = "https://github.com/tuanht/zerowol";
 const LIMIT = { wake: 120e3, shutdown: 90e3, reboot: 180e3 };
 const BUSY = { wake: "Waking…", shutdown: "Shutting down…", reboot: "Restarting…" };
-const FAIL = { wake: "Didn't come online", shutdown: "Didn't shut down", reboot: "Didn't restart" };
+const HINT = " Check journalctl -u zerowol-agent on the PC.";
+const FAIL = { wake: "Didn't come online", shutdown: "Didn't shut down." + HINT, reboot: "Didn't restart." + HINT };
 const $ = (s) => document.querySelector(s);
 const T = new Map(); // machine id -> {kind, start, off}
 let machines = [], loaded = false, timer = 0, sheetEls = null, onClose = null;
@@ -90,11 +91,12 @@ document.addEventListener("visibilitychange", () => (document.hidden ? clearTime
 function card(m) {
   const t = T.get(m.id), st = m.status || {}, on = !!st.online;
   const label = t ? BUSY[t.kind] : on ? "Online" : "Offline";
-  const meta = m.ip + " · " + (on ? (st.uptime != null ? "Up " + uptime(st.uptime) : "Online") : "Offline");
+  const meta = m.ip + " · " + (on ? (st.uptime != null ? "Up " + uptime(st.uptime) : "Online") : "Offline") + (st.agent_error ? " · Agent: " + st.agent_error : "");
   const btn = (cls, icon, text, fn) => h("button", { class: cls, disabled: !!t, onclick: fn }, ico(icon), text);
   let acts;
   if (on && st.agent === "paired")
     acts = [btn("", "redo", "Restart", () => confirmPower(m, "reboot")), btn("red", "power", "Shut Down", () => confirmPower(m, "shutdown"))];
+  else if (m.agent && st.agent_error) acts = [btn("", "redo", "Agent: " + st.agent_error + " · Pair", () => pairingSheet(m))];
   else if (on && m.agent) acts = [btn("", "redo", "Agent unreachable · Pair", () => pairingSheet(m))];
   else acts = [btn("", "power", "Wake", () => wake(m))];
   return h("div", { class: "group" },
@@ -197,7 +199,8 @@ function machineSheet(m) {
       if (ag.checked && !(m && m.agent)) pairingSheet(r);
     } catch (e) {
       save.disabled = false;
-      const k = (/^invalid (name|mac|ip|broadcast)/.exec(e.message) || [])[1];
+      const k = (/^invalid (name|mac|ip|broadcast|wol_port|probe_port)/.exec(e.message) || [])[1];
+      if (k && /port$/.test(k)) f[k].closest("details").open = true;
       if (k) rows[k].classList.add("err");
       err.textContent = e instanceof TypeError ? "Can't reach zerowol" : e.message.replace(/^./, (c) => c.toUpperCase());
     }
@@ -228,7 +231,8 @@ function machineSheet(m) {
 async function pairingSheet(m, rotate) {
   let alive = true;
   const cmd = h("div", { class: "code" }, "…");
-  const st = h("div", { class: "pair" }, h("span", { class: "dot busy" }), "Waiting for agent…");
+  const wait = h("span", null, "Waiting for agent…");
+  const st = h("div", { class: "pair" }, h("span", { class: "dot busy" }), wait);
   const cp = big("Copy", () => copy(cmd.textContent, cp));
   openSheet(h("h3", null, "Pair " + m.name), h("p", null, "Run this command on " + m.name + " (Linux)."), cmd, cp, st,
     big("Regenerate secret", () => confirmSheet("Regenerate secret?", "The installed agent will stop working until you run the new command.", "Regenerate", true, () => pairingSheet(m, true), () => pairingSheet(m)), "cancel"),
@@ -241,6 +245,7 @@ async function pairingSheet(m, rotate) {
     await sleep(2000);
     try {
       const s = await api("GET", "/machines/" + m.id + "/status");
+      if (alive && s.agent !== "paired") wait.textContent = s.agent_error ? "Agent: " + s.agent_error : "Waiting for agent…";
       if (alive && s.agent === "paired") {
         st.className = "pair ok";
         st.replaceChildren("Paired ✓");

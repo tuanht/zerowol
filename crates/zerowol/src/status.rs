@@ -1,4 +1,4 @@
-use crate::agent_client;
+use crate::agent_client::{self, AgentError};
 use crate::model::Machine;
 use crate::probe;
 use serde::Serialize;
@@ -16,6 +16,10 @@ pub struct Status {
     pub hostname: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uptime: Option<u64>,
+    /// Why the agent rejected our request (e.g. "clock skew 45s"); not set for
+    /// a plain unreachable agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub agent_error: Option<String>,
 }
 
 impl Status {
@@ -25,6 +29,7 @@ impl Status {
             agent,
             hostname: None,
             uptime: None,
+            agent_error: None,
         }
     }
 }
@@ -54,6 +59,11 @@ pub async fn machine_status(m: &Machine) -> Status {
                     agent: "paired",
                     hostname: Some(h.hostname),
                     uptime: Some(h.uptime),
+                    agent_error: None,
+                },
+                Ok(Err(e @ AgentError::Rejected(_))) => Status {
+                    agent_error: Some(e.message()),
+                    ..Status::plain(up, "unreachable")
                 },
                 _ => Status::plain(up, "unreachable"),
             }
@@ -128,7 +138,8 @@ mod tests {
                 online: true,
                 agent: "paired",
                 hostname: Some("pc".into()),
-                uptime: Some(7)
+                uptime: Some(7),
+                agent_error: None
             }
         );
     }
@@ -154,6 +165,24 @@ mod tests {
         let st = machine_status(&m).await;
         assert!(t.elapsed() < Duration::from_secs(2), "{:?}", t.elapsed());
         assert_eq!(st, Status::plain(true, "unreachable"));
+    }
+
+    #[tokio::test]
+    async fn status_agent_rejected_carries_reason() {
+        let s = new_secret();
+        let port = fake_agent(
+            &s,
+            "/v1/health",
+            "401 Unauthorized",
+            r#"{"error":"clock skew 45s"}"#,
+        )
+        .await;
+        let st = machine_status(&machine(closed_port().await, Some((port, s)))).await;
+        assert_eq!(st.agent, "unreachable");
+        assert_eq!(st.agent_error.as_deref(), Some("clock skew 45s"));
+        assert!(!st.online);
+        let j = serde_json::to_value(&st).unwrap();
+        assert_eq!(j["agent_error"], "clock skew 45s");
     }
 
     #[tokio::test]

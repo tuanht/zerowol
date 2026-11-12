@@ -3,7 +3,7 @@ FROM rust:1.99.1-alpine AS builder
 ARG TARGETARCH=amd64
 RUN apk add --no-cache zig musl-dev \
  && rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl \
- && cargo install cargo-zigbuild --locked
+ && cargo install cargo-zigbuild --version 0.24.1 --locked
 WORKDIR /src
 COPY . .
 RUN --mount=type=cache,target=/usr/local/cargo/registry \

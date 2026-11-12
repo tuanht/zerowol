@@ -73,7 +73,8 @@ if [ "$NOAGENT" -eq 1 ]; then
 fi
 
 TMP="$(mktemp)"
-trap 'rm -f "$TMP"' EXIT INT TERM
+trap 'rm -f "$TMP"' EXIT
+trap 'exit 130' INT TERM
 
 URL="http://@HOST@/agent/bin/$ARCH"
 echo "Downloading $URL"
@@ -127,10 +128,16 @@ systemctl enable zerowol-agent
 systemctl restart zerowol-agent
 
 if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
-  firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="@NAS_IP@" port port="@PORT@" protocol="tcp" accept'
-  firewall-cmd --reload
+  FW_MSG="warning: could not add firewalld rule; allow TCP @PORT@ from @NAS_IP@ manually"
+  firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="@NAS_IP@" port port="@PORT@" protocol="tcp" accept' || echo "$FW_MSG"
+  firewall-cmd --reload || echo "$FW_MSG"
 else
   echo "No running firewalld found. If you use a firewall, allow TCP port @PORT@ from @NAS_IP@."
+fi
+
+if systemctl is-active --quiet zerowol-agent; then :; else
+  echo "zerowol: the agent did not start. Check: journalctl -u zerowol-agent -n 50" >&2
+  exit 1
 fi
 
 echo "zerowol-agent running ✓"
@@ -163,7 +170,13 @@ fn not_found() -> Response {
 
 /// Host + NAS IP for a machine as seen by this request.
 pub fn host_for(state: &AppState, headers: &HeaderMap, m: &Machine) -> (String, Ipv4Addr) {
-    let nas_ip = nas_source_ip(m.ip).unwrap_or(Ipv4Addr::LOCALHOST);
+    let nas_ip = nas_source_ip(m.ip).unwrap_or_else(|e| {
+        tracing::warn!(
+            "cannot determine NAS address towards {}: {e}; using 127.0.0.1",
+            m.ip
+        );
+        Ipv4Addr::LOCALHOST
+    });
     let h = headers.get(header::HOST).and_then(|v| v.to_str().ok());
     (install_host(h, nas_ip, state.cfg.port), nas_ip)
 }

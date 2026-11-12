@@ -47,7 +47,11 @@ fn script_contents() {
         "ProtectKernelTunables=yes",
         "ProtectControlGroups=yes",
         "RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX",
-        "trap ",
+        "trap 'rm -f \"$TMP\"' EXIT",
+        "trap 'exit 130' INT TERM",
+        "systemctl is-active --quiet zerowol-agent",
+        "journalctl -u zerowol-agent",
+        "could not add firewalld rule; allow TCP 9009 from 192.168.23.10 manually",
         "mktemp",
         "zerowol-agent running",
     ] {
