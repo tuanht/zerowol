@@ -7,10 +7,14 @@
 .page[data-name=home] .page-content{padding-bottom:calc(96px + var(--f7-safe-area-bottom))}
 #list{max-width:640px;margin:0 auto}
 .fab>a .ico{width:24px;height:24px;stroke-width:2}
-.zw-ios .fab-gear>a{background:var(--f7-list-strong-bg-color,#fff);color:var(--f7-theme-color)}
-.zw-ios .fab>a{box-shadow:0 4px 18px rgba(0,0,0,.18)}
-.fab>a{border-radius:50%}
-.zw-md .fab-gear>a{background:var(--f7-md-surface-3,#eee);color:var(--f7-md-on-surface,inherit)}
+/* iOS: round glass toolbar buttons; only Add carries the tint, Settings stays neutral */
+.zw-ios .fab>a{border-radius:50%;box-shadow:0 4px 18px rgba(0,0,0,.18)}
+.zw-ios .fab:not(.fab-gear)>a{background:var(--f7-theme-color);color:#fff}
+.zw-ios .fab-gear>a{background:rgba(255,255,255,.72);color:#000;-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);box-shadow:0 4px 18px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.08)}
+.zw-ios.dark .fab-gear>a,.zw-ios .dark .fab-gear>a{background:rgba(58,58,60,.72);color:#fff;box-shadow:0 4px 18px rgba(0,0,0,.4),0 0 0 .5px rgba(255,255,255,.1)}
+/* Material 3: one FAB (Add, F7's rounded-square primary-container default); Settings lives in the top app bar */
+.zw-md .fab-gear,.zw-ios .zw-md-only{display:none}
+.zw-md #gear-top{color:var(--f7-md-on-surface-variant)}
 .card.machine{overflow:hidden}
 .zw-ios .card.machine{border-radius:20px}
 .card.machine .list{margin:0}

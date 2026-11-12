@@ -20,6 +20,7 @@ mkdirSync("screenshots", { recursive: true });
 const browser = await chromium.launch();
 let errors = 0;
 const fail = (msg) => { errors++; console.error("FAIL:", msg); };
+const GEAR = "#gear:visible, #gear-top:visible"; // bottom button on iOS, top app bar on Material
 for (const [theme, device] of [["ios", "iPhone 15"], ["md", "Pixel 7"]]) {
   for (const scheme of ["light", "dark"]) {
     const ctx = await browser.newContext({ ...devices[device], colorScheme: scheme });
@@ -39,10 +40,12 @@ for (const [theme, device] of [["ios", "iPhone 15"], ["md", "Pixel 7"]]) {
       await page.screenshot({ path: p });
       console.log("wrote", p);
     };
-    // FAB positions: settings bottom-left, add bottom-right.
-    const g = await page.locator("#gear").boundingBox(), a = await page.locator("#add").boundingBox();
+    // iOS: settings bottom-left, add bottom-right. Material: one FAB (add) bottom-right, settings in the top app bar.
+    const g = await page.locator(GEAR).boundingBox(), a = await page.locator("#add").boundingBox();
     const vp = page.viewportSize();
-    if (!(g.x < vp.width / 2 && a.x > vp.width / 2 && g.y > vp.height / 2 && a.y > vp.height / 2)) fail("fab positions");
+    const gearOk = theme === "ios" ? g.x < vp.width / 2 && g.y > vp.height / 2 : g.x > vp.width / 2 && g.y < vp.height / 4;
+    if (!(gearOk && a.x > vp.width / 2 && a.y > vp.height / 2)) fail("button positions");
+    if (theme === "md" && (await page.locator("#gear").isVisible())) fail("md shows bottom gear");
     await shot("empty");
     await page.click("#add");
     await page.waitForSelector(".page[data-name=machine] #f-name");
@@ -68,7 +71,7 @@ for (const [theme, device] of [["ios", "iPhone 15"], ["md", "Pixel 7"]]) {
     await shot("confirm");
     await page.click(".dialog-button >> text=Cancel");
     await page.waitForTimeout(400);
-    await page.click("#gear");
+    await page.click(GEAR);
     await page.waitForSelector(".page[data-name=settings]");
     await page.fill('input[placeholder="Token name"]', "home-script");
     await page.click('.page[data-name=settings] a.link:text-is("Create")');
@@ -85,12 +88,12 @@ for (const [theme, device] of [["ios", "iPhone 15"], ["md", "Pixel 7"]]) {
   const ctx = await browser.newContext({ ...devices["iPhone 15"] });
   const page = await ctx.newPage();
   await page.goto(base);
-  await page.click("#gear");
+  await page.click(GEAR);
   await page.waitForSelector(".page[data-name=settings]");
   await Promise.all([page.waitForEvent("load"), page.click('input[value="md"] + .icon-radio')]);
   if ((await page.evaluate(() => app.theme)) !== "md") fail("forced md theme on iPhone");
   // Light/dark override applies live and survives a reload.
-  await page.click("#gear");
+  await page.click(GEAR);
   await page.waitForSelector(".page[data-name=settings]");
   await page.click('input[value="dark"] + .icon-radio');
   if (!(await page.evaluate(() => document.documentElement.classList.contains("dark")))) fail("forced dark scheme");
