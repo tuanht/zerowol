@@ -72,6 +72,7 @@ const app = new Framework7({
 });
 const IOS = app.theme === "ios";
 document.documentElement.classList.add(IOS ? "zw-ios" : "zw-md");
+if (navigator.standalone || matchMedia("(display-mode: standalone)").matches) document.documentElement.classList.add("zw-standalone");
 applyScheme();
 // Hash-based history gives Android a working system back button. iOS keeps it
 // off: Safari's own edge swipe would fight Framework7's swipe-back.

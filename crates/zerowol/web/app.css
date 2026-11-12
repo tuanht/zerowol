@@ -67,3 +67,9 @@
 /* primary buttons: fully rounded; action blocks align with the inset cards/lists */
 .button-large.button-fill{border-radius:999px;height:50px;font-weight:600;text-transform:none}
 .page-content>.block.zw-actions{padding-left:0;padding-right:0}
+
+/* Installed iOS PWA: the OS draws a blurred status-bar band taller than
+   safe-area-inset-top, which smears the top of navbar buttons. Push all
+   Framework7 top chrome (navbar, page offsets) down by an extra gap. */
+html.ios.zw-standalone{--zw-top-gap:16px;--f7-safe-area-top:calc(env(safe-area-inset-top,0px) + var(--zw-top-gap))}
+html.ios.zw-standalone .offline{padding-top:calc(env(safe-area-inset-top) + var(--zw-top-gap) + 4px)}
