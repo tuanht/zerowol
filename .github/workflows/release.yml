@@ -8,6 +8,13 @@ on:
   push:
     branches: [master]
     tags: ["v*.*.*"]
+    # Docs-only changes to master don't rebuild :edge. Path filters are not
+    # evaluated for tag pushes, so releases always build.
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "screenshots/**"
+      - LICENSE
   workflow_dispatch:
 
 permissions:

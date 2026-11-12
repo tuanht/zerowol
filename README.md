@@ -84,6 +84,10 @@ sudo zerowol-agent uninstall
 
 Stops and removes the service, config, firewall rule and binary.
 
+## Troubleshooting
+
+- **Machine shows offline although the agent is running.** If the NAS and the PC both run Tailscale and the NAS advertises your LAN as a subnet route (`192.168.23.0/24`), a PC with `--accept-routes` installs that route into Tailscale's routing table, which is consulted before the main table. The PC then sends its replies to the NAS (SYN-ACKs, so even the TCP probe fails) through `tailscale0` instead of the LAN, and no connection ever completes. Check `ip route get <nas-ip>`: it must say `dev <lan-nic>`, not `tailscale0`. Fix with `sudo tailscale set --accept-routes=false` on the PC.
+
 ## API and tokens
 
 All endpoints live under `/api/v1`. Errors are JSON: `{"error":"<message>"}`.

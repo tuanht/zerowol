@@ -2,8 +2,14 @@ name: ci
 on:
   push:
     branches: [master]
+    paths-ignore: &docs
+      - "**.md"
+      - "docs/**"
+      - "screenshots/**"
+      - LICENSE
   pull_request:
     branches: [master]
+    paths-ignore: *docs
 
 env:
   CARGO_TERM_COLOR: always
