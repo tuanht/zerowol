@@ -124,3 +124,89 @@ pub async fn req(
         serde_json::from_str(&b).unwrap_or(serde_json::Value::Null),
     )
 }
+
+/// Fake agent: verifies signatures with zerowol-proto, records each verified
+/// power action (`shutdown`/`reboot`), and answers health with 200.
+/// `power_reply` overrides the reply to `/v1/power` (status line, JSON body).
+pub async fn fake_agent(
+    secret: &str,
+    power_reply: Option<(&'static str, &'static str)>,
+) -> (u16, Arc<Mutex<Vec<String>>>) {
+    use zerowol_proto::{Action, ReplayGuard, SIG_HEADER, parse_secret, verify};
+    let key = parse_secret(secret).unwrap();
+    let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = l.local_addr().unwrap().port();
+    let seen: Arc<Mutex<Vec<String>>> = Default::default();
+    let rec = seen.clone();
+    tokio::spawn(async move {
+        let mut guard = ReplayGuard::new();
+        while let Ok((mut s, _)) = l.accept().await {
+            let mut buf = Vec::new();
+            let mut tmp = [0u8; 2048];
+            let p = loop {
+                let n = s.read(&mut tmp).await.unwrap_or(0);
+                if n == 0 {
+                    break None;
+                }
+                buf.extend_from_slice(&tmp[..n]);
+                if let Some(p) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                    let head = String::from_utf8_lossy(&buf[..p]).to_lowercase();
+                    let len: usize = head
+                        .lines()
+                        .find_map(|l| {
+                            l.strip_prefix("content-length:")
+                                .map(|v| v.trim().parse().unwrap())
+                        })
+                        .unwrap_or(0);
+                    if buf.len() >= p + 4 + len {
+                        break Some(p);
+                    }
+                }
+            };
+            let Some(p) = p else { continue };
+            let head = String::from_utf8_lossy(&buf[..p]).to_string();
+            let sig = head
+                .lines()
+                .find_map(|l| {
+                    l.to_ascii_lowercase()
+                        .starts_with(&SIG_HEADER.to_ascii_lowercase())
+                        .then(|| l.split_once(':').unwrap().1.trim().to_string())
+                })
+                .unwrap_or_default();
+            let cmd = verify(
+                &key,
+                &buf[p + 4..],
+                &sig,
+                &[Action::Health, Action::Shutdown, Action::Reboot],
+                &mut guard,
+                zerowol::model::now(),
+            );
+            let is_power = head.starts_with("POST /v1/power ");
+            let (st, js) = match cmd {
+                Err(_) => (
+                    "401 Unauthorized",
+                    r#"{"error":"bad signature"}"#.to_string(),
+                ),
+                Ok(c) if is_power => {
+                    rec.lock()
+                        .unwrap()
+                        .push(format!("{:?}", c.action).to_lowercase());
+                    power_reply.map_or(
+                        ("202 Accepted", r#"{"result":"accepted"}"#.to_string()),
+                        |(a, b)| (a, b.to_string()),
+                    )
+                }
+                Ok(_) => (
+                    "200 OK",
+                    r#"{"hostname":"fake","version":"0","uptime":1}"#.to_string(),
+                ),
+            };
+            let resp = format!(
+                "HTTP/1.1 {st}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{js}",
+                js.len()
+            );
+            let _ = s.write_all(resp.as_bytes()).await;
+        }
+    });
+    (port, seen)
+}
