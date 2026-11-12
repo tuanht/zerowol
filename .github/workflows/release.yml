@@ -74,7 +74,7 @@ jobs:
             org.opencontainers.image.description=${{ env.DESCRIPTION }}
 
       - id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: runtime
@@ -110,7 +110,7 @@ jobs:
 
       # Same build as the image (served from the GHA cache), exported as files.
       - name: Extract server binaries
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: binary
