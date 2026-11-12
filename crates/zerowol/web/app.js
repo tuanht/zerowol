@@ -46,7 +46,7 @@ const app = new Framework7({
   touch: { tapHold: false },
   routes: [
     { path: "/machine/new/", async: ({ resolve }) => resolve({ el: machinePage(null) }) },
-    { path: "/machine/:id/pair/", async: ({ to, resolve, reject }) => routeMachine(to, resolve, reject, (m) => pairingPage(m, to.query.rotate === "1")) },
+    { path: "/machine/:id/pair/", async: ({ to, resolve, reject }) => routeMachine(to, resolve, reject, pairingPage) },
     { path: "/machine/:id/", async: ({ to, resolve, reject }) => routeMachine(to, resolve, reject, machinePage) },
     { path: "/settings/", async: ({ resolve }) => resolve({ el: settingsPage() }) },
   ],
@@ -88,8 +88,14 @@ async function api(method, path, body) {
   if (!r.ok) throw Object.assign(new Error((j && j.error) || "Request failed (" + r.status + ")"), { status: r.status });
   return j;
 }
+// Framework7 builds dialogs and toasts from HTML strings without escaping, so
+// every user-controlled string (machine/token names, server errors) goes through esc().
+const esc = (s) => { const d = document.createElement("div"); d.textContent = s == null ? "" : String(s); return d.innerHTML; };
 function toast(msg, ok) {
-  app.toast.create({ text: msg, position: "top", closeTimeout: 4000, cssClass: ok ? "" : "toast-bad" }).open();
+  const t = app.toast.create({ text: esc(msg), position: "top", closeTimeout: 4000, destroyOnClose: true, cssClass: ok ? "" : "toast-bad" });
+  t.el.setAttribute("role", "status");
+  t.el.setAttribute("aria-live", "polite");
+  t.open();
 }
 const offlineMsg = (e) => (e instanceof TypeError ? "Can't reach zerowol" : e.message);
 const fail = (e) => toast(offlineMsg(e));
@@ -99,7 +105,7 @@ function uptime(s) {
 }
 function confirmDialog(title, text, label, red, fn) {
   app.dialog.create({
-    title, text,
+    title: esc(title), text: esc(text),
     buttons: [{ text: "Cancel" }, { text: label, strong: true, color: red ? "red" : null, onClick: fn }],
   }).open();
 }
@@ -119,7 +125,7 @@ async function copy(text, b) {
 
 /* ---------- page scaffolding ---------- */
 function page(name, title, right, ...content) {
-  const back = h("a", { class: "link back", href: "#" }, h("i", { class: "icon icon-back" }), IOS ? h("span", null, "Back") : null);
+  const back = h("a", { class: "link back", href: "#", "aria-label": "Back" }, h("i", { class: "icon icon-back" }), IOS ? h("span", null, "Back") : null);
   return h("div", { class: "page", "data-name": name },
     h("div", { class: "navbar" },
       h("div", { class: "navbar-bg" }),
@@ -276,7 +282,9 @@ function machinePage(m) {
     busy = true; saveBtn.classList.add("disabled"); saveLink.classList.add("disabled");
     try {
       const r = m ? await api("PATCH", "/machines/" + m.id, body) : await api("POST", "/machines", body);
-      refresh();
+      await refresh();
+      // The user may have gone back while the request was in flight.
+      if (view.router.currentPageEl !== pageEl) return;
       if (ag.checked && !(m && m.agent)) view.router.navigate("/machine/" + r.id + "/pair/", { reloadCurrent: true });
       else view.router.back();
     } catch (e) {
@@ -294,19 +302,25 @@ function machinePage(m) {
     const items = [];
     if (m.agent) items.push(linkItem("Agent install command", () => go("/machine/" + m.id + "/pair/")));
     items.push(linkItem("Delete Machine", () => confirmDialog("Delete " + m.name + "?", "This removes the machine from zerowol. The PC itself is not touched.", "Delete", true, async () => {
-      try { await api("DELETE", "/machines/" + m.id); T.delete(m.id); refresh(); view.router.back(); } catch (e) { fail(e); }
+      try {
+        await api("DELETE", "/machines/" + m.id);
+        T.delete(m.id);
+        await refresh();
+        if (view.router.currentPageEl === pageEl) view.router.back();
+      } catch (e) { fail(e); }
     }), "color-red"));
     extra.push(list(LIST, items));
   }
   f.ip.dispatchEvent(new Event("input"));
   const form = h("form", { onsubmit: (e) => { e.preventDefault(); save(); } }, main, agentList, advList, h("button", { type: "submit", hidden: true }));
-  return page("machine", m ? "Edit Machine" : "Add Machine", saveLink,
+  const pageEl = page("machine", m ? "Edit Machine" : "Add Machine", saveLink,
     form, err, h("div", { class: "block" }, saveBtn), extra);
+  return pageEl;
 }
 
 /* ---------- pairing page ---------- */
-function pairingPage(m, rotate) {
-  let alive = true;
+function pairingPage(m) {
+  let alive = true, gen = 0;
   const cmd = h("div", { class: "code" }, "…");
   const wait = h("span", null, "Waiting for agent…");
   const st = h("div", { class: "pair" }, h("span", { class: "dot busy" }), wait);
@@ -317,19 +331,28 @@ function pairingPage(m, rotate) {
     h("div", { class: "block block-strong inset" },
       h("p", null, "Run this command on " + m.name + " (Linux)."), cmd, h("div", { class: "pair-btn" }, cp), st),
     list(LIST, linkItem("Regenerate secret", () => confirmDialog("Regenerate secret?", "The installed agent will stop working until you run the new command.", "Regenerate", true,
-      () => view.router.navigate("/machine/" + m.id + "/pair/?rotate=1", { reloadCurrent: true })), "color-red")),
+      () => load(true)), "color-red")),
     footer("Regenerating invalidates the secret the agent currently uses."));
   onRemove(el, () => { alive = false; });
-  (async () => {
+  // Rotation happens in place (never via a URL), so history back/forward can't
+  // silently regenerate the secret.
+  async function load(rotate) {
+    const my = ++gen;
+    cmd.textContent = "…";
+    st.className = "pair";
+    wait.textContent = "Waiting for agent…";
+    st.replaceChildren(h("span", { class: "dot busy" }), wait);
     try {
-      cmd.textContent = (await api(rotate ? "POST" : "GET", "/machines/" + m.id + "/agent/" + (rotate ? "rotate" : "install-command"))).install_command;
+      const r = await api(rotate ? "POST" : "GET", "/machines/" + m.id + "/agent/" + (rotate ? "rotate" : "install-command"));
+      if (my === gen) cmd.textContent = r.install_command;
     } catch (e) { fail(e); }
-    while (alive) {
+    while (alive && my === gen) {
       await sleep(2000);
       try {
         const s = await api("GET", "/machines/" + m.id + "/status");
-        if (alive && s.agent !== "paired") wait.textContent = s.agent_error ? "Agent: " + s.agent_error : "Waiting for agent…";
-        if (alive && s.agent === "paired") {
+        if (!alive || my !== gen) return;
+        if (s.agent !== "paired") wait.textContent = s.agent_error ? "Agent: " + s.agent_error : "Waiting for agent…";
+        else {
           st.className = "pair ok";
           st.replaceChildren("Paired ✓");
           refresh();
@@ -337,7 +360,8 @@ function pairingPage(m, rotate) {
         }
       } catch {}
     }
-  })();
+  }
+  load(false);
   return el;
 }
 
@@ -396,5 +420,7 @@ function settingsPage() {
 
 /* ---------- boot ---------- */
 $(".page[data-name=home]").addEventListener("page:reinit", refresh);
+// A confirm dialog must not outlive the page that opened it (Android system back).
+app.on("routeChange", () => app.dialog.close());
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 refresh();
