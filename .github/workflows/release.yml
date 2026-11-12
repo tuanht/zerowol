@@ -138,7 +138,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" release/* \
             --title "$GITHUB_REF_NAME" --generate-notes --notes "$notes" $prerelease
 
-  # Retention: keep only the 10 newest GHCR image versions. The action treats
+  # Retention: keep the 5 newest GHCR image versions plus the 3 newest stable releases. The action treats
   # a multi-arch manifest and its per-platform children as one image, so
   # pruning never leaves a kept tag pointing at deleted layers.
   prune-images:
@@ -148,7 +148,7 @@ jobs:
       packages: write
     steps:
       # The 3 newest stable releases (X.Y.Z tags, the ones that carried
-      # :latest) are exempt from pruning, even if they fall outside the 10.
+      # :latest) are exempt from pruning, even if they fall outside the 5 newest.
       - id: stable
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -168,6 +168,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           image-names: ${{ github.event.repository.name }}
           tag-selection: both
-          keep-n-most-recent: 10
+          keep-n-most-recent: 5
           cut-off: 1h
           skip-shas: ${{ steps.stable.outputs.shas }}
