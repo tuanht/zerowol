@@ -59,8 +59,8 @@ function reconcile() {
   for (const [id, t] of T) {
     const m = machines.find((x) => x.id === id);
     if (!m) { T.delete(id); continue; }
-    const on = m.status && m.status.online;
-    if (t.kind === "reboot" && !on) t.off = true;
+    const st = m.status || {}, on = !!st.online;
+    if (t.kind === "reboot" && (!on || (t.up != null && st.uptime != null && st.uptime < t.up))) t.off = true;
     const done = t.kind === "wake" ? on : t.kind === "shutdown" ? !on : t.off && on;
     if (done) T.delete(id);
     else if (now - t.start > LIMIT[t.kind]) { T.delete(id); toast(m.name + ": " + FAIL[t.kind]); }
@@ -127,7 +127,7 @@ function confirmPower(m, kind) {
     down ? "Unsaved work on " + m.name + " will be lost." : m.name + " will restart. Unsaved work will be lost.",
     down ? "Shut Down" : "Restart", down, async () => {
       closeSheet();
-      T.set(m.id, { kind, start: Date.now() });
+      T.set(m.id, { kind, start: Date.now(), up: m.status && m.status.uptime });
       render(); schedule();
       try { await api("POST", "/machines/" + m.id + "/" + kind); } catch (e) { T.delete(m.id); fail(e); }
       refresh();
@@ -221,6 +221,7 @@ function machineSheet(m) {
     }, () => machineSheet(m)) }, "Delete Machine"));
     grp.push(h("div", { class: "group" }, extra));
   }
+  f.ip.dispatchEvent(new Event("input"));
   openSheet(h("h3", null, m ? "Edit Machine" : "Add Machine"), grp, err, save, cancel());
 }
 

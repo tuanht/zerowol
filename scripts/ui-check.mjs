@@ -1,3 +1,5 @@
+// WARNING: this script DELETES ALL MACHINES on the target server (and removes the tokens it creates).
+// Point it only at a throwaway instance, e.g. ZEROWOL_DATA=$(mktemp -d) ZEROWOL_PORT=18090 cargo run -p zerowol
 // Usage: NODE_PATH=$(npm root -g) node scripts/ui-check.mjs http://127.0.0.1:8090
 // Writes 8 screenshots (light/dark x list, pairing, confirm, settings) to ./screenshots/.
 import { createRequire } from "node:module";
@@ -9,7 +11,11 @@ try { pw = require("playwright"); } catch {
   pw = createRequire(root + "/")("playwright");
 }
 const { chromium, devices } = pw;
-const base = process.argv[2] || "http://127.0.0.1:8090";
+const base = process.argv[2];
+if (!base) {
+  console.error("usage: node scripts/ui-check.mjs <base-url of a THROWAWAY zerowol server>");
+  process.exit(2);
+}
 mkdirSync("screenshots", { recursive: true });
 const browser = await chromium.launch();
 let errors = 0;
@@ -48,6 +54,9 @@ for (const scheme of ["light", "dark"]) {
   await page.click('button:text-is("Create")');
   await page.waitForSelector("text=won't be shown again");
   await shot("settings");
+  await page.evaluate(async () => {
+    for (const t of await (await fetch("/api/v1/tokens")).json()) await fetch("/api/v1/tokens/" + t.id, { method: "DELETE" });
+  });
   await ctx.close();
 }
 await browser.close();
