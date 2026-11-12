@@ -118,11 +118,12 @@ pub(crate) mod testutil {
 
     /// Fake agent: verifies the signature, then replies with `status` + `json`.
     /// Returns the port. Replies 401 `bad signature` if verification fails.
-    pub async fn fake_agent(secret: &str, status: &str, json: &'static str) -> u16 {
+    pub async fn fake_agent(secret: &str, path: &str, status: &str, json: &'static str) -> u16 {
         let key = parse_secret(secret).unwrap();
         let l = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
         let port = l.local_addr().unwrap().port();
         let status = status.to_string();
+        let path = path.to_string();
         tokio::spawn(async move {
             let mut guard = ReplayGuard::new();
             while let Ok((mut s, _)) = l.accept().await {
@@ -169,7 +170,8 @@ pub(crate) mod testutil {
                     &mut guard,
                     crate::model::now(),
                 )
-                .is_ok();
+                .is_ok()
+                    && head.starts_with(&format!("POST {path} HTTP/1.1"));
                 let (st, js) = if ok {
                     (status.as_str(), json)
                 } else {
@@ -219,6 +221,7 @@ mod tests {
         let s = secret();
         let port = fake_agent(
             &s,
+            "/v1/health",
             "200 OK",
             r#"{"hostname":"pc","version":"0.1.0","uptime":42}"#,
         )
@@ -230,7 +233,7 @@ mod tests {
 
     #[tokio::test]
     async fn health_wrong_secret_rejected() {
-        let port = fake_agent(&secret(), "200 OK", "{}").await;
+        let port = fake_agent(&secret(), "/v1/health", "200 OK", "{}").await;
         let e = health(LO, port, &secret()).await.unwrap_err();
         assert_eq!(e, AgentError::Rejected("bad signature".into()));
     }
@@ -238,14 +241,20 @@ mod tests {
     #[tokio::test]
     async fn power_accepted() {
         let s = secret();
-        let port = fake_agent(&s, "202 Accepted", r#"{"result":"accepted"}"#).await;
+        let port = fake_agent(&s, "/v1/power", "202 Accepted", r#"{"result":"accepted"}"#).await;
         assert_eq!(power(LO, port, &s, Action::Shutdown).await, Ok(()));
     }
 
     #[tokio::test]
     async fn power_rejected_reason() {
         let s = secret();
-        let port = fake_agent(&s, "401 Unauthorized", r#"{"error":"clock skew 45s"}"#).await;
+        let port = fake_agent(
+            &s,
+            "/v1/power",
+            "401 Unauthorized",
+            r#"{"error":"clock skew 45s"}"#,
+        )
+        .await;
         let e = power(LO, port, &s, Action::Reboot).await.unwrap_err();
         assert_eq!(e, AgentError::Rejected("clock skew 45s".into()));
         assert_eq!(e.message(), "clock skew 45s");

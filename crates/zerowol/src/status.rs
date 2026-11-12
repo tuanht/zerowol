@@ -29,37 +29,35 @@ impl Status {
     }
 }
 
-/// Agent health and TCP probe run concurrently, capped at 1.5 s overall.
+/// Agent health and TCP probe run concurrently, each capped at 1.5 s, so the
+/// whole call finishes in ~1.5 s and a probe result is never discarded.
 pub async fn machine_status(m: &Machine) -> Status {
-    let probe_fut = probe::is_open(m.ip, m.probe_port, PROBE_TIMEOUT);
-    let work = async {
-        match &m.agent {
-            None => Status::plain(probe_fut.await, "none"),
-            Some(a) => {
-                let (h, up) =
-                    tokio::join!(agent_client::health(m.ip, a.port, &a.secret), probe_fut);
-                match h {
-                    Ok(h) => Status {
-                        online: true,
-                        agent: "paired",
-                        hostname: Some(h.hostname),
-                        uptime: Some(h.uptime),
-                    },
-                    Err(_) => Status::plain(up, "unreachable"),
-                }
+    let probe_fut = async {
+        tokio::time::timeout(
+            OVERALL_CAP,
+            probe::is_open(m.ip, m.probe_port, PROBE_TIMEOUT),
+        )
+        .await
+        .unwrap_or(false)
+    };
+    match &m.agent {
+        None => Status::plain(probe_fut.await, "none"),
+        Some(a) => {
+            let health_fut = async {
+                tokio::time::timeout(OVERALL_CAP, agent_client::health(m.ip, a.port, &a.secret))
+                    .await
+            };
+            let (h, up) = tokio::join!(health_fut, probe_fut);
+            match h {
+                Ok(Ok(h)) => Status {
+                    online: true,
+                    agent: "paired",
+                    hostname: Some(h.hostname),
+                    uptime: Some(h.uptime),
+                },
+                _ => Status::plain(up, "unreachable"),
             }
         }
-    };
-    match tokio::time::timeout(OVERALL_CAP, work).await {
-        Ok(s) => s,
-        Err(_) => Status::plain(
-            false,
-            if m.agent.is_some() {
-                "unreachable"
-            } else {
-                "none"
-            },
-        ),
     }
 }
 
@@ -118,6 +116,7 @@ mod tests {
         let s = new_secret();
         let port = fake_agent(
             &s,
+            "/v1/health",
             "200 OK",
             r#"{"hostname":"pc","version":"0.1.0","uptime":7}"#,
         )
@@ -143,6 +142,17 @@ mod tests {
             Some((closed_port().await, new_secret())),
         ))
         .await;
+        assert_eq!(st, Status::plain(true, "unreachable"));
+    }
+
+    #[tokio::test]
+    async fn status_agent_silent_probe_up() {
+        let l = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
+        let probe_port = l.local_addr().unwrap().port();
+        let m = machine(probe_port, Some((silent_agent().await, new_secret())));
+        let t = Instant::now();
+        let st = machine_status(&m).await;
+        assert!(t.elapsed() < Duration::from_secs(2), "{:?}", t.elapsed());
         assert_eq!(st, Status::plain(true, "unreachable"));
     }
 
