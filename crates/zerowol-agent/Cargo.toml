@@ -1,0 +1,15 @@
+[package]
+name = "zerowol-agent"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+zerowol-proto = { path = "../zerowol-proto" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+[dev-dependencies]
+tempfile = "3"
