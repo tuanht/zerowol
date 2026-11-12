@@ -137,3 +137,21 @@ jobs:
           notes=$(printf 'Container image (linux/amd64, linux/arm64):\n\n```sh\ndocker pull %s\n```\n\nDigest: `%s`\n' "$IMAGE" "$DIGEST")
           gh release create "$GITHUB_REF_NAME" release/* \
             --title "$GITHUB_REF_NAME" --generate-notes --notes "$notes" $prerelease
+
+  # Retention: keep only the 10 newest GHCR image versions. The action treats
+  # a multi-arch manifest and its per-platform children as one image, so
+  # pruning never leaves a kept tag pointing at deleted layers.
+  prune-images:
+    needs: image
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: snok/container-retention-policy@v3.0.0
+        with:
+          account: ${{ github.repository_owner }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          image-names: ${{ github.event.repository.name }}
+          tag-selection: both
+          keep-n-most-recent: 10
+          cut-off: 1h
