@@ -446,7 +446,13 @@ function settingsPage() {
 }
 
 /* ---------- boot ---------- */
-$(".page[data-name=home]").addEventListener("page:reinit", refresh);
+// Framework7 drops the home page from the DOM once two pages are stacked on it
+// (machine -> pair) and rebuilds it from the original, empty markup on the way
+// back, so per-element listeners are lost and #list comes back blank. Repaint
+// from the cached machines at once, then refresh.
+const homeBack = (p) => { if (p.name === "home") { render(); refresh(); } };
+app.on("pageInit", homeBack);
+app.on("pageReinit", homeBack);
 // A confirm dialog must not outlive the page that opened it (Android system back).
 app.on("routeChange", () => app.dialog.close());
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});

@@ -2,8 +2,14 @@ name: ci
 on:
   push:
     branches: [master]
+    paths-ignore: &docs
+      - "**.md"
+      - "docs/**"
+      - "screenshots/**"
+      - LICENSE
   pull_request:
     branches: [master]
+    paths-ignore: *docs
 
 env:
   CARGO_TERM_COLOR: always
@@ -35,3 +41,21 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: false
           cache-from: type=gha
+
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright and Chromium
+        run: |
+          npm install -g playwright@1.65.0
+          npx playwright install --with-deps chromium
+      # Builds the dev-fakes server, starts it on a throwaway data dir and runs
+      # the browser regression cases (scripts/ui-regression.mjs).
+      - run: scripts/ui-regression.sh
