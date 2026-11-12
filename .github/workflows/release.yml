@@ -90,7 +90,7 @@ jobs:
 
       # Signed build provenance. Attestations need a public repo (or a paid
       # plan for private ones), so this step is skipped while the repo is private.
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         if: ${{ !github.event.repository.private }}
         with:
           subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
