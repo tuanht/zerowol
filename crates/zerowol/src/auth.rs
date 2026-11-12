@@ -2,7 +2,7 @@ use crate::app::AppState;
 use crate::model::now;
 use axum::Json;
 use axum::extract::{Request, State};
-use axum::http::{HeaderMap, StatusCode, header};
+use axum::http::{HeaderMap, Method, StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use base64::Engine;
@@ -66,9 +66,44 @@ fn is_tokens_path(path: &str) -> bool {
     p == "/tokens" || p.starts_with("/tokens/")
 }
 
+/// Browsers only send `Sec-Fetch-Site` on secure origins, so plain-HTTP UIs
+/// are recognised by the marker cookie set when `/` is served.
+fn has_ui_cookie(headers: &HeaderMap) -> bool {
+    headers
+        .get_all(header::COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .flat_map(|v| v.split(';'))
+        .any(|c| c.trim() == "zw_ui=1")
+}
+
+/// A state-changing request whose `Origin` names a different host than `Host`
+/// (a cross-site form or fetch). Requests without `Origin` (curl) are fine.
+fn cross_origin_write(method: &Method, headers: &HeaderMap) -> bool {
+    if matches!(*method, Method::GET | Method::HEAD) {
+        return false;
+    }
+    let Some(origin) = headers.get(header::ORIGIN) else {
+        return false;
+    };
+    let origin_host = origin
+        .to_str()
+        .ok()
+        .and_then(|o| o.split_once("://"))
+        .map(|(_, h)| h.trim_end_matches('/'));
+    let host = headers.get(header::HOST).and_then(|v| v.to_str().ok());
+    match (origin_host, host) {
+        (Some(o), Some(h)) => !o.eq_ignore_ascii_case(h),
+        _ => true,
+    }
+}
+
 pub async fn middleware(State(app): State<AppState>, mut req: Request, next: Next) -> Response {
     let has_auth = req.headers().contains_key(header::AUTHORIZATION);
     if has_auth && is_tokens_path(req.uri().path()) {
+        return err(StatusCode::FORBIDDEN, "forbidden");
+    }
+    if !has_auth && cross_origin_write(req.method(), req.headers()) {
         return err(StatusCode::FORBIDDEN, "forbidden");
     }
     let source = if has_auth {
@@ -90,12 +125,9 @@ pub async fn middleware(State(app): State<AppState>, mut req: Request, next: Nex
         Source::Token(tok.name.clone())
     } else {
         if app.cfg.require_token {
-            let same = req
-                .headers()
-                .get("sec-fetch-site")
-                .and_then(|v| v.to_str().ok())
-                == Some("same-origin");
-            if !same {
+            let h = req.headers();
+            let same = h.get("sec-fetch-site").and_then(|v| v.to_str().ok()) == Some("same-origin");
+            if !same && !has_ui_cookie(h) {
                 return err(StatusCode::UNAUTHORIZED, "unauthorized");
             }
         }

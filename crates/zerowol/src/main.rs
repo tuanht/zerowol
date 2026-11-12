@@ -77,9 +77,26 @@ async fn serve(cfg: Config) -> ExitCode {
         cfg: Arc::new(cfg),
         limiter: Arc::new(Mutex::new(Default::default())),
     };
-    if let Err(e) = axum::serve(listener, router(state)).await {
+    let final_store = state.store.clone();
+    let served = axum::serve(listener, router(state))
+        .with_graceful_shutdown(shutdown_signal())
+        .await;
+    if let Err(e) = final_store.flush() {
+        tracing::error!("final flush failed: {e}");
+    }
+    if let Err(e) = served {
         tracing::error!("server error: {e}");
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS
+}
+
+async fn shutdown_signal() {
+    use tokio::signal::unix::{SignalKind, signal};
+    let mut term = signal(SignalKind::terminate()).expect("SIGTERM handler");
+    tokio::select! {
+        _ = term.recv() => {}
+        _ = tokio::signal::ctrl_c() => {}
+    }
+    tracing::info!("shutting down");
 }

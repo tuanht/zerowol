@@ -80,7 +80,7 @@ pub async fn serve(req: axum::extract::Request) -> Response {
         axum::http::Method::GET | axum::http::Method::HEAD
     ) && let Some((body, ct, cc)) = get(req.uri().path())
     {
-        return (
+        let mut resp = (
             [
                 (header::CONTENT_TYPE, HeaderValue::from_static(ct)),
                 (header::CACHE_CONTROL, HeaderValue::from_static(cc)),
@@ -88,6 +88,13 @@ pub async fn serve(req: axum::extract::Request) -> Response {
             body.into_owned(),
         )
             .into_response();
+        if matches!(req.uri().path(), "/" | "/index.html") {
+            resp.headers_mut().insert(
+                header::SET_COOKIE,
+                HeaderValue::from_static("zw_ui=1; Path=/; SameSite=Strict; HttpOnly"),
+            );
+        }
+        return resp;
     }
     (
         StatusCode::NOT_FOUND,

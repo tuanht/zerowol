@@ -82,6 +82,59 @@ async fn require_token_matrix() {
 }
 
 #[tokio::test]
+async fn require_token_ui_cookie() {
+    let (base, _s, _d) = spawn(true).await;
+    let url = format!("{base}/api/v1/machines");
+    let (c, _) = req("GET", &url, &[("Cookie", "zw_ui=1")], None).await;
+    assert_eq!(c, 200);
+    let (c, _) = req("GET", &url, &[("Cookie", "a=b; zw_ui=1; c=d")], None).await;
+    assert_eq!(c, 200);
+    let (c, _) = req("GET", &url, &[("Cookie", "zw_ui=0")], None).await;
+    assert_eq!(c, 401);
+    let (c, _) = req("GET", &url, &[], None).await;
+    assert_eq!(c, 401);
+}
+
+#[tokio::test]
+async fn index_sets_ui_cookie() {
+    let (base, _s, _d) = spawn(true).await;
+    for p in ["/", "/index.html"] {
+        let (c, hs, _) = req_full("GET", &format!("{base}{p}"), &[], None).await;
+        assert_eq!(c, 200);
+        let ck = hs.iter().find(|(k, _)| k == "set-cookie").unwrap();
+        assert_eq!(ck.1, "zw_ui=1; Path=/; SameSite=Strict; HttpOnly");
+    }
+    let (_, hs, _) = req_full("GET", &format!("{base}/app.css"), &[], None).await;
+    assert!(!hs.iter().any(|(k, _)| k == "set-cookie"));
+}
+
+#[tokio::test]
+async fn cross_origin_post_blocked_in_open_mode() {
+    let (base, _s, _d) = spawn(false).await;
+    let host = base.strip_prefix("http://").unwrap().to_string();
+    let url = format!("{base}/api/v1/machines");
+    let body = r#"{"name":"A","mac":"AA:BB:CC:DD:EE:01","ip":"10.0.0.2"}"#;
+    let (c, b) = req(
+        "POST",
+        &url,
+        &[("Origin", "http://evil.example")],
+        Some(body),
+    )
+    .await;
+    assert_eq!((c, b), (403, json!({"error":"forbidden"})));
+    let (c, _) = req("POST", &url, &[("Origin", "null")], Some(body)).await;
+    assert_eq!(c, 403);
+    let (c, _) = req("GET", &url, &[("Origin", "http://evil.example")], None).await;
+    assert_eq!(c, 200);
+    let origin = format!("http://{host}");
+    let (c, _) = req("POST", &url, &[("Origin", &origin)], Some(body)).await;
+    assert_eq!(c, 201);
+    let body2 = r#"{"name":"B","mac":"AA:BB:CC:DD:EE:02","ip":"10.0.0.3"}"#;
+    let (c, _) = req("POST", &url, &[], Some(body2)).await;
+    assert_eq!(c, 201);
+}
+
+#[tokio::test]
 async fn tokens_path_rejects_any_bearer() {
     let (base, s, _d) = spawn(false).await;
     let t = add_token(&s, "zc");
@@ -238,6 +291,45 @@ async fn invalid_inputs() {
     assert_eq!((c, b), (400, json!({"error":"bad request"})));
     let (c, b) = req("PATCH", &format!("{}/zzzzzz", mk(&base)), &[], Some("{}")).await;
     assert_eq!((c, b), (404, json!({"error":"not found"})));
+}
+
+#[tokio::test]
+async fn invalid_ports() {
+    let (base, _s, _d) = spawn(false).await;
+    let ok = json!({"name":"A","mac":"AA:BB:CC:DD:EE:01","ip":"10.0.0.2","agent":false});
+    for (k, v) in [
+        ("wol_port", json!(70000)),
+        ("wol_port", json!(-1)),
+        ("wol_port", json!(0)),
+        ("wol_port", json!("9")),
+        ("probe_port", json!(65536)),
+        ("probe_port", json!(1.5)),
+    ] {
+        let mut body = ok.clone();
+        body[k] = v.clone();
+        let (c, b) = create(&base, body).await;
+        assert_eq!(
+            (c, b),
+            (400, json!({"error": format!("invalid {k}")})),
+            "{k}={v}"
+        );
+    }
+    let mut body = ok.clone();
+    body["wol_port"] = json!(7);
+    body["probe_port"] = json!(65535);
+    let (c, b) = create(&base, body).await;
+    assert_eq!(
+        (c, b["wol_port"].clone(), b["probe_port"].clone()),
+        (201, json!(7), json!(65535))
+    );
+    let id = b["id"].as_str().unwrap().to_string();
+    let url = format!("{}/{id}", mk(&base));
+    let (c, b) = req("PATCH", &url, &[], Some(r#"{"probe_port":99999}"#)).await;
+    assert_eq!((c, b), (400, json!({"error":"invalid probe_port"})));
+    let (c, b) = req("PATCH", &url, &[], Some(r#"{"wol_port":-3}"#)).await;
+    assert_eq!((c, b), (400, json!({"error":"invalid wol_port"})));
+    let (c, b) = req("PATCH", &url, &[], Some(r#"{"wol_port":9}"#)).await;
+    assert_eq!((c, b["wol_port"].clone()), (200, json!(9)));
 }
 
 #[tokio::test]

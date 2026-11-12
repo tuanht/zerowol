@@ -95,7 +95,7 @@ Status looks like `{"online":true,"agent":"paired","hostname":"pc","uptime":1234
 
 ### Tokens
 
-Create tokens in the UI settings, or via the API:
+Create tokens in the UI settings (Settings, API Tokens), or via the API. The `curl` example below works only in the default open mode; with `ZEROWOL_REQUIRE_TOKEN=true` create tokens from the web UI.
 
 ```sh
 curl -s -X POST $BASE/tokens -H 'content-type: application/json' -d '{"name":"automation"}'
@@ -104,7 +104,7 @@ curl -s -X POST $BASE/tokens -H 'content-type: application/json' -d '{"name":"au
 curl -s -X POST -H "Authorization: Bearer zw_..." $BASE/machines/<id>/wake
 ```
 
-With `ZEROWOL_REQUIRE_TOKEN=true`, API requests without a bearer token are rejected unless they come from the web UI itself (same-origin). Token management endpoints never accept a bearer token.
+With `ZEROWOL_REQUIRE_TOKEN=true`, API requests without a bearer token are rejected unless they come from the web UI itself (same-origin, or the `zw_ui` cookie the UI page sets, which also makes it work over plain HTTP). Token management endpoints never accept a bearer token.
 
 ## Migrating from zeroclaw's `wolbot`
 

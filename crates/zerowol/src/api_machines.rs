@@ -63,8 +63,8 @@ pub struct CreateBody {
     mac: String,
     ip: String,
     broadcast: Option<String>,
-    wol_port: Option<u16>,
-    probe_port: Option<u16>,
+    wol_port: Option<serde_json::Value>,
+    probe_port: Option<serde_json::Value>,
     #[serde(default)]
     agent: bool,
 }
@@ -75,8 +75,8 @@ pub struct PatchBody {
     mac: Option<String>,
     ip: Option<String>,
     broadcast: Option<String>,
-    wol_port: Option<u16>,
-    probe_port: Option<u16>,
+    wol_port: Option<serde_json::Value>,
+    probe_port: Option<serde_json::Value>,
     agent: Option<bool>,
 }
 
@@ -102,6 +102,18 @@ fn valid_mac(s: &str) -> ApiResult<String> {
 
 fn valid_ip(s: &str, what: &str) -> ApiResult<Ipv4Addr> {
     s.trim().parse().map_err(|_| bad(what))
+}
+
+fn valid_port(v: &Option<serde_json::Value>, what: &str) -> ApiResult<Option<u16>> {
+    match v {
+        None => Ok(None),
+        Some(v) => v
+            .as_u64()
+            .and_then(|n| u16::try_from(n).ok())
+            .filter(|n| *n != 0)
+            .map(Some)
+            .ok_or_else(|| bad(what)),
+    }
 }
 
 fn log(action: &str, machine: &str, source: &Source, result: &str) {
@@ -142,6 +154,8 @@ pub async fn create(
         Some(s) => valid_ip(s, "invalid broadcast")?,
         None => default_broadcast(ip),
     };
+    let wol_port = valid_port(&b.wol_port, "invalid wol_port")?;
+    let probe_port = valid_port(&b.probe_port, "invalid probe_port")?;
     let m = state.store.update(|st| {
         if st.machines.iter().any(|m| m.mac == mac) {
             return Err(bad("invalid mac: already used"));
@@ -156,8 +170,8 @@ pub async fn create(
             mac,
             ip,
             broadcast,
-            wol_port: b.wol_port.unwrap_or(9),
-            probe_port: b.probe_port.unwrap_or(22),
+            wol_port: wol_port.unwrap_or(9),
+            probe_port: probe_port.unwrap_or(22),
             agent: b.agent.then(|| AgentCfg {
                 port: DEFAULT_AGENT_PORT,
                 secret: new_secret(),
@@ -188,6 +202,8 @@ pub async fn patch(
         .as_deref()
         .map(|s| valid_ip(s, "invalid broadcast"))
         .transpose()?;
+    let wol_port = valid_port(&b.wol_port, "invalid wol_port")?;
+    let probe_port = valid_port(&b.probe_port, "invalid probe_port")?;
     let m = state.store.update(|st| {
         if let Some(mac) = &mac
             && st.machines.iter().any(|m| m.id != id && &m.mac == mac)
@@ -211,10 +227,10 @@ pub async fn patch(
         if let Some(v) = broadcast {
             m.broadcast = v;
         }
-        if let Some(v) = b.wol_port {
+        if let Some(v) = wol_port {
             m.wol_port = v;
         }
-        if let Some(v) = b.probe_port {
+        if let Some(v) = probe_port {
             m.probe_port = v;
         }
         match b.agent {

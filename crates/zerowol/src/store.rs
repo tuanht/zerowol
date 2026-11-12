@@ -2,6 +2,7 @@ use crate::model::State;
 use std::fmt;
 use std::fs::{self, File};
 use std::io::Write;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, RwLock};
 
@@ -38,12 +39,26 @@ fn persist(dir: &Path, st: &State) -> Result<(), String> {
     let tmp = dir.join("state.json.tmp");
     let bak = dir.join("state.json.bak");
     let json = serde_json::to_vec_pretty(st).map_err(|e| e.to_string())?;
-    let mut f = File::create(&tmp).map_err(|e| e.to_string())?;
+    let mut f = fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(&tmp)
+        .map_err(|e| e.to_string())?;
     f.write_all(&json).map_err(|e| e.to_string())?;
     f.sync_all().map_err(|e| e.to_string())?;
     drop(f);
     if path.exists() {
-        fs::copy(&path, &bak).map_err(|e| e.to_string())?;
+        fs::remove_file(&bak).ok();
+        let mut src = File::open(&path).map_err(|e| e.to_string())?;
+        let mut dst = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .open(&bak)
+            .map_err(|e| e.to_string())?;
+        std::io::copy(&mut src, &mut dst).map_err(|e| e.to_string())?;
     }
     fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
@@ -94,9 +109,18 @@ impl Store {
     }
 
     pub fn flush_if_due(&self, now: u64) -> Result<(), StoreError> {
+        self.flush_inner(now, false)
+    }
+
+    /// Writes pending `last_used` changes now, regardless of the interval.
+    pub fn flush(&self) -> Result<(), StoreError> {
+        self.flush_inner(crate::model::now(), true)
+    }
+
+    fn flush_inner(&self, now: u64, force: bool) -> Result<(), StoreError> {
         let guard = self.state.write().unwrap_or_else(|e| e.into_inner());
         let mut meta = self.meta.lock().unwrap_or_else(|e| e.into_inner());
-        if !meta.0 || now < meta.1.saturating_add(FLUSH_INTERVAL) {
+        if !meta.0 || (!force && now < meta.1.saturating_add(FLUSH_INTERVAL)) {
             return Ok(());
         }
         persist(&self.dir, &guard).map_err(StoreError::Save)?;
@@ -232,6 +256,43 @@ mod tests {
         assert_eq!(on_disk_last_used(&d), Some(1000));
         s.flush_if_due(1060).unwrap();
         assert_eq!(on_disk_last_used(&d), Some(1030));
+    }
+
+    #[test]
+    fn flush_writes_immediately() {
+        let d = TempDir::new().unwrap();
+        let s = Store::open(d.path()).unwrap();
+        s.update(|st| {
+            st.tokens.push(Token {
+                id: "t".into(),
+                name: "x".into(),
+                hash: "h".into(),
+                created: 1,
+                last_used: None,
+            });
+            Ok::<_, StoreError>(())
+        })
+        .unwrap();
+        s.touch_token("t", 1000);
+        s.flush_if_due(1000).unwrap();
+        s.touch_token("t", 1010);
+        s.flush_if_due(1010).unwrap();
+        assert_eq!(on_disk_last_used(&d), Some(1000));
+        s.flush().unwrap();
+        assert_eq!(on_disk_last_used(&d), Some(1010));
+    }
+
+    #[test]
+    fn state_files_are_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let d = TempDir::new().unwrap();
+        let s = Store::open(d.path()).unwrap();
+        add(&s, "a").unwrap();
+        add(&s, "b").unwrap();
+        for f in ["state.json", "state.json.bak"] {
+            let m = std::fs::metadata(d.path().join(f)).unwrap();
+            assert_eq!(m.permissions().mode() & 0o777, 0o600, "{f}");
+        }
     }
 
     #[test]
