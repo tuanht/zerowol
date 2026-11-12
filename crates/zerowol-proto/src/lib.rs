@@ -1,5 +1,5 @@
 //! Signed-command message format shared by the zerowol server and agent.
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::collections::HashMap;
