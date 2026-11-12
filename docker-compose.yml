@@ -1,0 +1,20 @@
+services:
+  zerowol:
+    build: { context: ., target: prebuilt }
+    image: zerowol:latest
+    container_name: zerowol
+    restart: unless-stopped
+    network_mode: host
+    user: "${PUID:-1026}:${PGID:-100}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes: [./data:/data]
+    environment:
+      - ZEROWOL_PORT=8090
+      - ZEROWOL_REQUIRE_TOKEN=false
+      - TZ=Asia/Ho_Chi_Minh
+    healthcheck:
+      test: ["CMD", "/zerowol", "healthcheck"]
+      interval: 60s
+    mem_limit: 32m
