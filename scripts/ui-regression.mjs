@@ -134,7 +134,12 @@ const cases = {
     await p.waitForTimeout(300);
     r = await nav();
     if (theme === "ios" && !(r.top < 40)) throw new Error(`1280px: iOS capsule not at the top (${JSON.stringify(r)})`);
-    if (theme === "md" && !(r.width <= 80 && r.left === 0)) throw new Error(`1280px: no Material rail (${JSON.stringify(r)})`);
+    if (theme === "md" && !(Math.abs(r.width - 80) <= 1 && r.left === 0)) throw new Error(`1280px: no 80px Material rail (${JSON.stringify(r)})`);
+    if (theme === "md" && (await p.locator(".zw-fab").count())) {
+      // M3 navigation rail: the FAB is centred in the rail
+      const f = await p.evaluate(() => document.querySelector(".zw-fab").getBoundingClientRect().toJSON());
+      if (Math.abs(f.left + f.width / 2 - 40) > 1) throw new Error(`1280px: FAB not centred in the rail (${JSON.stringify(f)})`);
+    }
     await p.setViewportSize(vp);
     await p.waitForTimeout(300);
   },

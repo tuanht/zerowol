@@ -5,22 +5,20 @@
 
 /* machines */
 .card.machine{overflow:hidden}
-.card.machine .list{margin:0}
-.card.machine .list ul{background:none}
-.card.machine .list ul::before,.card.machine .list ul::after{display:none}
 .tile{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;background:rgba(120,120,128,.14);color:var(--f7-theme-color)}
 .zw-md .tile{border-radius:50%;background:var(--f7-md-secondary-container,rgba(120,120,128,.14));color:var(--f7-md-on-secondary-container,inherit)}
-.card.machine .item-title.name{font-weight:600}
-.card.machine .item-subtitle.meta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.7;font-size:14px}
-.status-r{display:flex;align-items:center;gap:6px;font-size:14px;white-space:nowrap}
+.status-r{display:flex;align-items:center;gap:6px;white-space:nowrap}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#8E8E93;flex:none}
 .dot.on{background:var(--zw-green)}
 .dot.busy{background:var(--zw-amber);animation:zwpulse 1s ease-in-out infinite}
 .busy-t{color:var(--zw-amber)}
 @keyframes zwpulse{50%{opacity:.35}}
-.card-footer.actions{padding:0;min-height:0;justify-content:stretch;gap:0}
-.card-footer.actions .button{flex:1;height:46px;border-radius:0;gap:6px}
-.card-footer.actions .button+.button{border-left:1px solid var(--f7-card-footer-border-color,rgba(0,0,0,.12))}
+/* iOS: full-width split buttons. Material: Framework7's card footer, buttons at the end (M3 card actions). */
+.zw-ios .card-footer.actions{padding:0;min-height:0;justify-content:stretch;gap:0}
+.zw-ios .card-footer.actions .button{flex:1;height:46px;border-radius:0}
+.zw-ios .card-footer.actions .button+.button{border-left:1px solid var(--f7-card-footer-border-color)}
+.zw-md .card-footer.actions{justify-content:flex-end;gap:8px}
+.card-footer.actions .button{gap:6px;width:auto}
 .card-footer.actions .ico{width:18px;height:18px}
 .foot{max-width:640px;margin-left:auto;margin-right:auto}
 .empty .item-inner{justify-content:center;text-align:center;padding:28px 0}
@@ -63,13 +61,14 @@ html.ios.zw-standalone .offline{padding-top:calc(env(safe-area-inset-top) + var(
    Phone: iOS floating bottom capsule / Material bottom navigation bar.
    Wide (>= 768px, html.zw-wide toggled live by App.vue):
    iOS: floating capsule at the top center, labels only.
-   Material: 72px navigation rail on the left with the FAB at its top. */
+   Material: 80px navigation rail on the left with the FAB at its top. */
 .zw-nav i.icon{width:var(--f7-tabbar-icon-size)}
 .zw-nav i.icon .ico{width:100%;height:100%}
 .fab>a .ico{width:24px;height:24px;stroke-width:2}
-/* Material phone: Framework7's fab-right-bottom already sits 16px above the
-   bottom tab bar (it adds the bar height itself), so only the rail moves it. */
-.zw-fab{position:fixed;z-index:5002}
+/* Material phone: Framework7's fab-right-bottom places the FAB itself, 16px above
+   the bottom tab bar (it adds the bar height). Only the rail moves it.
+   z-index: the FAB is a sibling of the tab views, which Framework7 stacks at 5000. */
+.zw-fab{z-index:5002}
 
 .zw-wide .views>.view{--f7-page-toolbar-bottom-offset:0px}
 
@@ -85,12 +84,12 @@ html.ios.zw-standalone .offline{padding-top:calc(env(safe-area-inset-top) + var(
 .zw-ios.zw-wide .zw-nav .tab-link .icon{display:none}
 .zw-ios.zw-wide .zw-nav .tabbar-label{margin:0;font-size:15px;font-weight:600}
 
-/* Material wide: left navigation rail */
-.zw-md.zw-wide .views>.view{margin-left:calc(72px + var(--f7-safe-area-left));width:auto}
-.zw-md.zw-wide .zw-nav{position:fixed;top:0;bottom:0;left:0;width:calc(72px + var(--f7-safe-area-left));height:auto;transform:none}
+/* Material wide: left navigation rail (Framework7 has none). M3: 80dp wide, FAB centred at the top. */
+.zw-md.zw-wide .views>.view{margin-left:calc(80px + var(--f7-safe-area-left));width:auto}
+.zw-md.zw-wide .zw-nav{position:fixed;top:0;bottom:0;left:0;width:calc(80px + var(--f7-safe-area-left));height:auto;transform:none}
 .zw-md.zw-wide .zw-nav .toolbar-inner{position:absolute;inset:0;height:auto;flex-direction:column;justify-content:flex-start;align-items:stretch;gap:12px;padding:calc(var(--f7-safe-area-top) + 96px) 0 0 var(--f7-safe-area-left)}
 .zw-md.zw-wide .zw-nav .tab-link{height:56px;flex:none}
-.zw-md.zw-wide .zw-fab{left:calc(8px + var(--f7-safe-area-left));top:calc(var(--f7-safe-area-top) + 16px);right:auto;bottom:auto}
+.zw-md.zw-wide .zw-fab{left:calc(12px + var(--f7-safe-area-left));top:calc(var(--f7-safe-area-top) + 16px);right:auto;bottom:auto;margin:0}
 
 /* machines grid: one column on phones, auto-fill when wide (cards keep their own margins) */
 .zw-wide .zw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
