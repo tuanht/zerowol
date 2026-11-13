@@ -53,7 +53,8 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/machines/{id}/status", get(api_machines::get_status))
         .route("/machines/{id}/wake", post(api_machines::wake))
-        .route("/machines/{id}/shutdown", post(api_machines::shutdown))
+        .route("/machines/{id}/poweroff", post(api_machines::poweroff))
+        .route("/machines/{id}/shutdown", post(api_machines::poweroff))
         .route("/machines/{id}/reboot", post(api_machines::reboot))
         .route("/machines/{id}/agent/rotate", post(api_machines::rotate))
         .route(

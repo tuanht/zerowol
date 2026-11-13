@@ -351,12 +351,12 @@ async fn power(
     }
 }
 
-pub async fn shutdown(
+pub async fn poweroff(
     State(state): State<AppState>,
     Extension(source): Extension<Source>,
     Path(id): Path<String>,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    power(state, source, id, "shutdown", Action::Shutdown).await
+    power(state, source, id, "poweroff", Action::Shutdown).await
 }
 
 pub async fn reboot(

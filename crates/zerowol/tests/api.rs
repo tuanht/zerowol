@@ -492,6 +492,37 @@ async fn shutdown_ok_then_rate_limited_and_reboot() {
 }
 
 #[tokio::test]
+async fn poweroff_no_agent() {
+    let (base, _s, _d) = spawn(false).await;
+    let (_, m) = create(
+        &base,
+        json!({"name":"A","mac":"AA:BB:CC:DD:EE:01","ip":"10.0.0.2","agent":false}),
+    )
+    .await;
+    let id = m["id"].as_str().unwrap();
+    let (c, b) = req("POST", &format!("{}/{id}/poweroff", mk(&base)), &[], None).await;
+    assert_eq!((c, b), (409, json!({"error":"no agent"})));
+}
+
+#[tokio::test]
+async fn poweroff_sends_shutdown_and_shares_rate_limit() {
+    let (base, s, _d) = spawn(false).await;
+    let (id, seen) = agent_machine(&base, &s, None).await;
+    let (c, b) = req("POST", &format!("{}/{id}/poweroff", mk(&base)), &[], None).await;
+    assert_eq!((c, b), (202, json!({"result":"accepted"})));
+    assert_eq!(*seen.lock().unwrap(), vec!["shutdown"]);
+    let (c, b) = req("POST", &format!("{}/{id}/shutdown", mk(&base)), &[], None).await;
+    assert_eq!((c, b), (429, json!({"error":"rate limited"})));
+}
+
+#[tokio::test]
+async fn poweroff_unknown_machine() {
+    let (base, _s, _d) = spawn(false).await;
+    let (c, _) = req("POST", &format!("{}/nope/poweroff", mk(&base)), &[], None).await;
+    assert_eq!(c, 404);
+}
+
+#[tokio::test]
 async fn agent_skew_passthrough() {
     let (base, s, _d) = spawn(false).await;
     let (id, _) = agent_machine(

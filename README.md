@@ -3,7 +3,7 @@
 A tiny Wake-on-LAN and remote shutdown server for your NAS, with a mobile-first PWA, a JSON API and an optional agent for your PCs. One static binary (under 5 MB image), no database, no external services.
 
 - Wake machines with a magic packet.
-- Shut down or reboot machines through a small signed agent (HMAC-SHA256, replay-protected).
+- Power off or reboot machines through a small signed agent (HMAC-SHA256, replay-protected).
 - Live status: online, agent paired, hostname, uptime.
 - Installable on a phone home screen (iOS and Android).
 
@@ -98,14 +98,14 @@ BASE=http://<nas-ip>:8090/api/v1
 # list machines (with status)
 curl -s $BASE/machines
 
-# wake / status / shutdown / reboot
+# wake / status / poweroff / reboot
 curl -s -X POST $BASE/machines/<id>/wake
 curl -s $BASE/machines/<id>/status
-curl -s -X POST $BASE/machines/<id>/shutdown     # 202; one per machine per 10 s (429)
+curl -s -X POST $BASE/machines/<id>/poweroff     # 202; one per machine per 10 s (429)
 curl -s -X POST $BASE/machines/<id>/reboot
 ```
 
-Status looks like `{"online":true,"agent":"paired","hostname":"pc","uptime":1234}`. If the PC's clock is out of sync with the NAS, shutdown fails with the agent's reason (for example `clock skew 45s`) as a `502` error.
+Status looks like `{"online":true,"agent":"paired","hostname":"pc","uptime":1234}`. If the PC's clock is out of sync with the NAS, power off fails with the agent's reason (for example `clock skew 45s`) as a `502` error. `/shutdown` is kept as an alias for `/poweroff`.
 
 ### Tokens
 
@@ -122,7 +122,7 @@ With `ZEROWOL_REQUIRE_TOKEN=true`, API requests without a bearer token are rejec
 
 ## Migrating from zeroclaw's `wolbot`
 
-Replace the `wolbot` sidecar with zerowol: create a token, then point the zeroclaw skill's wake and shutdown calls at `POST /api/v1/machines/<id>/wake` and `POST /api/v1/machines/<id>/shutdown` on the zerowol server with the header `Authorization: Bearer <token>`. Machine ids come from `GET /api/v1/machines`.
+Replace the `wolbot` sidecar with zerowol: create a token, then point the zeroclaw skill's wake and power off calls at `POST /api/v1/machines/<id>/wake` and `POST /api/v1/machines/<id>/poweroff` on the zerowol server with the header `Authorization: Bearer <token>`. Machine ids come from `GET /api/v1/machines`.
 
 ## Building
 
