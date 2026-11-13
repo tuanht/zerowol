@@ -119,7 +119,7 @@ async function copy() {
       <p>Copy {{ fresh.name }} now. It won't be shown again.</p>
       <div class="code">{{ fresh.token }}</div>
       <div class="pair-btn">
-        <button class="button button-large button-fill" type="button" @click="copy">{{ copied ? "Copied" : "Copy" }}</button>
+        <button class="button button-large button-fill button-round" type="button" @click="copy">{{ copied ? "Copied" : "Copy" }}</button>
       </div>
     </div>
     <div class="list list-strong inset list-dividers-ios">

@@ -115,7 +115,8 @@ const cases = {
   "resize switches nav layout": async (p, theme) => {
     const vp = p.viewportSize();
     const nav = () => p.evaluate(() => {
-      const r = document.querySelector(".toolbar.zw-nav").getBoundingClientRect();
+      // iOS: the floating glass pill is the toolbar-pane; Material: the bar itself
+      const r = document.querySelector(document.documentElement.classList.contains("ios") ? ".zw-nav .toolbar-pane" : ".toolbar.zw-nav").getBoundingClientRect();
       return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width, ih: innerHeight, iw: innerWidth };
     });
     await p.setViewportSize({ width: 375, height: 812 });

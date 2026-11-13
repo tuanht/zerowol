@@ -54,7 +54,7 @@ for (const [theme, device] of [["ios", "iPhone 15"], ["md", "Pixel 7"]]) {
     // Phone layout: tab bar at the bottom (iOS: floating capsule). Add: iOS "+" in the navbar (top right),
     // Material a FAB above the tab bar (bottom right).
     const vp = page.viewportSize();
-    const nav = await page.locator(".toolbar.zw-nav").boundingBox();
+    const nav = await page.locator(theme === "ios" ? ".zw-nav .toolbar-pane" : ".toolbar.zw-nav").boundingBox();
     const gap = vp.height - (nav.y + nav.height);
     if (!(theme === "ios" ? gap >= 4 && gap <= 40 && nav.x >= 8 : Math.abs(gap) <= 2)) fail("tab bar not at the bottom");
     const ADD = theme === "ios" ? `${CUR} .navbar [aria-label="Add Machine"]` : ".zw-fab a";

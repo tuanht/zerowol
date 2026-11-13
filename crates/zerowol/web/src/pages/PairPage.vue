@@ -72,7 +72,7 @@ async function regen() {
       <p>Run this command on {{ m.name }} (Linux).</p>
       <div class="code">{{ cmd }}</div>
       <div class="pair-btn">
-        <button class="button button-large button-fill" type="button" @click="copy">{{ copied ? "Copied" : "Copy" }}</button>
+        <button class="button button-large button-fill button-round" type="button" @click="copy">{{ copied ? "Copied" : "Copy" }}</button>
       </div>
       <div class="pair" :class="{ ok: paired }">
         <template v-if="paired">Paired ✓</template>

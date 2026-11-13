@@ -5,7 +5,6 @@
 
 /* machines */
 .card.machine{overflow:hidden}
-.zw-ios .card.machine{border-radius:20px}
 .card.machine .list{margin:0}
 .card.machine .list ul{background:none}
 .card.machine .list ul::before,.card.machine .list ul::after{display:none}
@@ -39,7 +38,6 @@
 .errmsg{color:var(--zw-red);font-size:14px;margin-top:8px;margin-bottom:0}
 .errmsg:empty{display:none}
 .item-input-invalid .item-label{color:var(--zw-red)}
-.list-button.color-red{color:var(--zw-red)}
 
 /* pairing + tokens */
 .code{font:13px/18px ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;background:rgba(120,120,128,.14);border-radius:12px;padding:12px;margin:12px 0 0;user-select:all;-webkit-user-select:all}
@@ -52,13 +50,7 @@
 .token-row .item-inner{flex-direction:row!important;align-items:center;gap:12px}
 .token-row .item-input-wrap{flex:1;min-width:0}
 
-/* iOS navbar back pill: F7's liquid-glass inner shadow looks muddy; keep the
-   glass fill with a soft outer shadow and hairline edge instead. */
-.ios .navbar .left,.ios .navbar .right{box-shadow:0 2px 10px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.08)}
-.ios.dark .navbar .left,.ios.dark .navbar .right,.ios .dark .navbar .left,.ios .dark .navbar .right{box-shadow:0 2px 10px rgba(0,0,0,.4),0 0 0 .5px rgba(255,255,255,.12)}
-
-/* primary buttons: fully rounded; action blocks align with the inset cards/lists */
-.button-large.button-fill{border-radius:999px;height:50px;font-weight:600;text-transform:none}
+/* action blocks align with the inset cards/lists */
 .page-content>.block.zw-actions{padding-left:0;padding-right:0}
 
 /* Installed iOS PWA: the OS draws a blurred status-bar band taller than
@@ -81,26 +73,17 @@ html.ios.zw-standalone .offline{padding-top:calc(env(safe-area-inset-top) + var(
 
 .zw-wide .views>.view{--f7-page-toolbar-bottom-offset:0px}
 
-/* iOS phone: floating bottom capsule (iOS 26 style), icons above labels */
-.zw-ios:not(.zw-wide) .views>.view{--f7-page-toolbar-bottom-offset:72px}
-.zw-ios:not(.zw-wide) .zw-nav{left:calc(16px + var(--f7-safe-area-left));right:calc(16px + var(--f7-safe-area-right));bottom:calc(max(var(--f7-safe-area-bottom),8px));width:auto;height:60px;max-width:420px;margin:0 auto;border-radius:999px;overflow:hidden;background:var(--zw-capsule-bg);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);box-shadow:0 4px 16px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.08)}
-.zw-ios:not(.zw-wide) .zw-nav::before,.zw-ios:not(.zw-wide) .zw-nav::after{display:none}
-.zw-ios:not(.zw-wide) .zw-nav .toolbar-inner{position:static;height:100%;padding:4px;gap:2px;background:none;border-radius:inherit}
-.zw-ios:not(.zw-wide) .zw-nav .tab-link{height:100%;border-radius:999px}
-.zw-ios:not(.zw-wide) .zw-nav .tab-link-active{background:rgba(120,120,128,.16)}
-
-/* iOS wide: top capsule; navbars move down below it */
+/* iOS: Framework7's own floating Liquid Glass tab bar (.toolbar-pane) on phones.
+   Wide: same glass pane moved to the top center, labels only. */
 .zw-ios.zw-wide{--zw-capsule-top:calc(env(safe-area-inset-top,0px) + var(--zw-top-gap,0px) + 8px)}
 .zw-ios.zw-wide .views>.view{--f7-safe-area-top:calc(var(--zw-capsule-top) + 48px)}
-.zw-ios.zw-wide .zw-nav{position:fixed;top:var(--zw-capsule-top);bottom:auto;left:50%;transform:translateX(-50%);width:auto;height:40px;--f7-toolbar-height:40px;border-radius:999px;overflow:hidden;background:var(--zw-capsule-bg);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);box-shadow:0 2px 12px rgba(0,0,0,.1),0 0 0 .5px rgba(0,0,0,.08)}
+.zw-ios.zw-wide .zw-nav{top:var(--zw-capsule-top);bottom:auto;left:50%;right:auto;transform:translateX(-50%);width:auto;height:44px}
 .zw-ios.zw-wide .zw-nav::before,.zw-ios.zw-wide .zw-nav::after{display:none}
-.zw-ios.zw-wide .zw-nav .toolbar-inner{position:static;height:100%;padding:3px;gap:2px;background:none;border-radius:inherit}
-.zw-ios.zw-wide .zw-nav .tab-link{width:auto;height:100%;padding:0 18px;border-radius:999px;flex-direction:row}
+.zw-ios.zw-wide .zw-nav .toolbar-inner{position:static;height:100%;padding:0}
+.zw-ios.zw-wide .zw-nav .toolbar-pane{padding:0 2px}
+.zw-ios.zw-wide .zw-nav .tab-link{min-width:0;height:100%;padding:0 18px}
 .zw-ios.zw-wide .zw-nav .tab-link .icon{display:none}
-.zw-ios.zw-wide .zw-nav .tabbar-label{font-size:15px;font-weight:600}
-.zw-ios.zw-wide .zw-nav .tab-link-active{background:rgba(120,120,128,.16)}
-.zw-ios{--zw-capsule-bg:rgba(255,255,255,.75)}
-.zw-ios.dark,.zw-ios .dark{--zw-capsule-bg:rgba(44,44,46,.75)}
+.zw-ios.zw-wide .zw-nav .tabbar-label{margin:0;font-size:15px;font-weight:600}
 
 /* Material wide: left navigation rail */
 .zw-md.zw-wide .views>.view{margin-left:calc(72px + var(--f7-safe-area-left));width:auto}

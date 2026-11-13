@@ -163,7 +163,7 @@ async function del() {
     </form>
     <div class="block errmsg">{{ err }}</div>
     <div class="block zw-actions">
-      <button class="button button-large button-fill" :class="{ disabled: busy }" type="button" @click="save">Save</button>
+      <button class="button button-large button-fill button-round" :class="{ disabled: busy }" type="button" @click="save">Save</button>
     </div>
     <div v-if="m" class="list list-strong inset list-dividers-ios">
       <ul>

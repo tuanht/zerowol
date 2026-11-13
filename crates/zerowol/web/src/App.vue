@@ -102,16 +102,19 @@ function add() {
     <div v-if="machines.offline" class="offline" role="alert">Can't reach zerowol</div>
     <f7-views tabs class="safe-areas">
       <f7-toolbar tabbar icons bottom class="zw-nav">
-        <f7-link
-          v-for="(t, i) in tabs"
-          :key="t.id"
-          :tab-link="'#' + t.id"
-          :tab-link-active="i === 0"
-          :aria-label="t.label"
-        >
-          <i class="icon"><Icon :name="t.icon" /></i>
-          <span class="tabbar-label">{{ t.label }}</span>
-        </f7-link>
+        <!-- toolbar-pane gives the iOS Liquid Glass pill (display:contents on Material) -->
+        <f7-toolbar-pane>
+          <f7-link
+            v-for="(t, i) in tabs"
+            :key="t.id"
+            :tab-link="'#' + t.id"
+            :tab-link-active="i === 0"
+            :aria-label="t.label"
+          >
+            <i class="icon"><Icon :name="t.icon" /></i>
+            <span class="tabbar-label">{{ t.label }}</span>
+          </f7-link>
+        </f7-toolbar-pane>
       </f7-toolbar>
       <f7-view
         v-for="(t, i) in tabs"
