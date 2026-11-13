@@ -14,45 +14,11 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-<link rel="stylesheet" href="/vendor/framework7.css">
 <link rel="stylesheet" href="/app.css">
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-<defs>
-<symbol id="i-desk" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></symbol>
-<symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.4 6.8a8 8 0 1 0 11.2 0"/></symbol>
-<symbol id="i-redo" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 4v4.5h-4.5"/></symbol>
-<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
-<symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2.8l1.6 2.2 2.7-.5.9 2.6 2.6.9-.5 2.7 2.2 1.6-2.2 1.6.5 2.7-2.6.9-.9 2.6-2.7-.5L12 21.2 10.4 19l-2.7.5-.9-2.6-2.6-.9.5-2.7L2.5 12l2.2-1.6-.5-2.7 2.6-.9.9-2.6 2.7.5z"/></symbol>
-</defs>
-</svg>
 <div id="offline" class="offline" hidden>Can't reach zerowol</div>
-<div id="app">
-  <div class="view view-main safe-areas">
-    <div class="page" data-name="home">
-      <div class="navbar navbar-large">
-        <div class="navbar-bg"></div>
-        <div class="navbar-inner">
-          <div class="title sliding">Machines</div>
-          <div class="right zw-md-only"><a href="/settings/" id="gear-top" class="link icon-only" aria-label="Settings"><svg class="ico"><use href="#i-gear"/></svg></a></div>
-          <div class="title-large"><div class="title-large-text">Machines</div></div>
-        </div>
-      </div>
-      <div class="fab fab-left-bottom fab-gear">
-        <a href="/settings/" id="gear" aria-label="Settings"><svg class="ico"><use href="#i-gear"/></svg></a>
-      </div>
-      <div class="fab fab-right-bottom">
-        <a href="/machine/new/" id="add" aria-label="Add Machine"><svg class="ico"><use href="#i-plus"/></svg></a>
-      </div>
-      <div class="page-content">
-        <div id="list"></div>
-        <div id="foot" class="block-footer foot" hidden>Wake uses a magic packet. Restart and Shut Down require the zerowol agent.</div>
-      </div>
-    </div>
-  </div>
-</div>
-<script src="/vendor/framework7.js"></script>
+<div id="app"></div>
 <script src="/app.js"></script>
 </body>
 </html>

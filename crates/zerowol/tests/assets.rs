@@ -27,19 +27,31 @@ async fn static_types() {
         ("/app.css", "text/css"),
         ("/sw.js", "javascript"),
         ("/icon.svg", "image/svg+xml"),
-        ("/vendor/framework7.js", "javascript"),
-        ("/vendor/framework7.css", "text/css"),
     ] {
         let (st, hs, _) = req_full("GET", &format!("{base}{p}"), &[], None).await;
         assert_eq!(st, 200, "{p}");
         assert!(header(&hs, "content-type").contains(ct), "{p}");
     }
+    // Framework7 is bundled into /app.js now; the old vendor files are gone.
+    let (st, v) = req("GET", &format!("{base}/vendor/framework7.js"), &[], None).await;
+    assert_eq!(st, 404);
+    assert_eq!(v["error"], "not found");
 }
 
 #[tokio::test]
 async fn service_worker_versioned() {
     let (base, _s, _d) = common::spawn(false).await;
     let (st, body) = req_raw("GET", &format!("{base}/sw.js"), &[], None).await;
+    assert_eq!(st, 200);
+    assert!(!body.contains("__VERSION__"));
+    assert!(body.contains(env!("CARGO_PKG_VERSION")));
+}
+
+#[tokio::test]
+async fn app_js_versioned() {
+    // The Vite build keeps the literal __VERSION__ for assets.rs to substitute.
+    let (base, _s, _d) = common::spawn(false).await;
+    let (st, body) = req_raw("GET", &format!("{base}/app.js"), &[], None).await;
     assert_eq!(st, 200);
     assert!(!body.contains("__VERSION__"));
     assert!(body.contains(env!("CARGO_PKG_VERSION")));
@@ -88,8 +100,9 @@ async fn unknown_paths_404_json() {
 
 #[test]
 fn budget() {
-    // Only our own files directly in web/ count; read_dir is non-recursive, so the
-    // vendored Framework7 bundle in web/vendor/ is intentionally excluded.
+    // Only hand-written files directly in web/ count; read_dir is non-recursive, so
+    // the Vite build output in web/dist/ (budgeted by scripts/web-size.mjs),
+    // web/src/ and web/node_modules/ are intentionally excluded.
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("web");
     let total: u64 = std::fs::read_dir(dir)
         .unwrap()

@@ -131,7 +131,11 @@ make test     # fmt check, clippy -D warnings, tests
 make dist     # static x86_64 binary with both agents embedded -> dist/zerowol (needs zig + cargo-zigbuild)
 make image    # docker build -t zerowol:latest .
 make smoke    # end-to-end test: server + agent on loopback (uses port 9009)
+make web      # rebuild the web UI into crates/zerowol/web/dist (npm ci, vitest, vite build)
+make web-dev  # Vite dev server with hot reload, proxying /api to `make dev` on port 8090
 ```
+
+Node 22 is needed only for UI work: the built web UI (`crates/zerowol/web/dist/app.js` and `app.css`) is committed, so `cargo build`, `make dist` and the Docker build need only Rust. After changing anything in `crates/zerowol/web/src`, run `make web` and commit `dist/` with it; CI (`make web-check`) fails when the committed files differ from a fresh build.
 
 The toolchain (Rust 1.99.1 with the musl targets) is pinned by `rust-toolchain.toml`. For an arm64 NAS: `docker buildx build --platform linux/arm64 -t zerowol:latest .` (the builder cross-compiles natively, no QEMU needed).
 
@@ -145,7 +149,7 @@ git tag v0.1.0 && git push origin v0.1.0
 
 GHCR packages start private. After the first publish, make the package public under the repository's Packages settings on GitHub.
 
-The web UI is built on a vendored, trimmed [Framework7](https://framework7.io) bundle (MIT, see `crates/zerowol/web/vendor/FRAMEWORK7-LICENSE`) embedded into the binary; regenerate it with `scripts/build-f7.sh`. The theme automatically matches iOS or Android (Material) based on the device, and can be overridden in Settings.
+The web UI is a Vue 3 + [Framework7](https://framework7.io)-Vue app (both MIT) in `crates/zerowol/web/src`, built with `make web` into the committed `web/dist/` and embedded into the binary. The theme automatically matches iOS or Android (Material) based on the device, and can be overridden in Settings.
 
 ### Development server with fake machines
 

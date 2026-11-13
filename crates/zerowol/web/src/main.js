@@ -1,0 +1,61 @@
+import { createApp } from "vue";
+import Framework7 from "framework7/lite";
+import Dialog from "framework7/components/dialog";
+import Toast from "framework7/components/toast";
+import Toggle from "framework7/components/toggle";
+import Input from "framework7/components/input";
+import Fab from "framework7/components/fab";
+import Preloader from "framework7/components/preloader";
+import Accordion from "framework7/components/accordion";
+import Card from "framework7/components/card";
+import Popup from "framework7/components/popup";
+import Sheet from "framework7/components/sheet";
+import Tabs from "framework7/components/tabs";
+import Framework7Vue, { registerComponents } from "framework7-vue/bundle";
+
+import "framework7/css";
+import "framework7/components/dialog/css";
+import "framework7/components/toast/css";
+import "framework7/components/toggle/css";
+import "framework7/components/input/css";
+import "framework7/components/fab/css";
+import "framework7/components/preloader/css";
+import "framework7/components/accordion/css";
+import "framework7/components/card/css";
+import "framework7/components/radio/css";
+import "framework7/components/popup/css";
+import "framework7/components/sheet/css";
+import "framework7/components/tabs/css";
+import "./styles/app.css";
+
+import App from "./App.vue";
+import { themePref, darkParam } from "./lib/prefs.js";
+
+const theme = themePref();
+Framework7.use([Dialog, Toast, Toggle, Input, Fab, Preloader, Accordion, Card, Popup, Sheet, Tabs]);
+Framework7.use(Framework7Vue, { theme });
+
+// Old installs may carry a "#!/..." hash from the previous router; start clean.
+if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+if (navigator.standalone || matchMedia("(display-mode: standalone)").matches) {
+  document.documentElement.classList.add("zw-standalone");
+}
+
+const f7params = {
+  name: "zerowol",
+  theme,
+  darkMode: darkParam(),
+  colors: { primary: "#007aff" },
+  touch: { tapHold: false },
+  // Browser history is handled by lib/back.js (per-tab Android back), not by
+  // Framework7, whose single history stack mixes the tabs' page stacks.
+  view: { browserHistory: false, iosSwipeBack: true },
+};
+
+const app = createApp(App, { f7params });
+registerComponents(app);
+app.mount("#app");
+
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+}

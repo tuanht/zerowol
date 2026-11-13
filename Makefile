@@ -1,7 +1,7 @@
 AGENT_X86 := $(CURDIR)/target/x86_64-unknown-linux-musl/release/zerowol-agent
 AGENT_ARM := $(CURDIR)/target/aarch64-unknown-linux-musl/release/zerowol-agent
 
-.PHONY: test dev agents dist image smoke ui-regression
+.PHONY: test dev agents dist image smoke ui-regression web web-check web-dev
 
 DEV_DATA ?= $(CURDIR)/target/dev-data
 DEV_PORT ?= 8090
@@ -12,6 +12,21 @@ test:
 	cargo test --workspace
 	cargo clippy -p zerowol --all-targets --features dev-fakes -- -D warnings
 	cargo test -p zerowol --features dev-fakes fake::
+
+# Web UI (Node 22, UI work only): rebuild the committed web/dist/app.js + app.css.
+# Release builds (cargo, make dist, Docker) use the committed files and never run Node.
+web:
+	cd crates/zerowol/web && npm ci && npm test && npm run build
+
+# CI: the committed dist must match a fresh build and stay within the gzip budget.
+web-check: web
+	git diff --exit-code crates/zerowol/web/dist
+	node scripts/web-size.mjs
+
+# Vite dev server with hot reload (opens /dev.html); proxies /api and /agent to
+# a running `make dev` on port 8090.
+web-dev:
+	cd crates/zerowol/web && npx vite
 
 # Development server with simulated fake machines (never in release builds).
 dev:

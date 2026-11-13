@@ -3,18 +3,7 @@
 .ico{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .offline{position:fixed;top:0;left:0;right:0;z-index:20000;background:var(--zw-red);color:#fff;text-align:center;font-size:13px;padding:calc(env(safe-area-inset-top) + 4px) 8px 4px}
 
-/* home */
-.page[data-name=home] .page-content{padding-bottom:calc(96px + var(--f7-safe-area-bottom))}
-#list{max-width:640px;margin:0 auto}
-.fab>a .ico{width:24px;height:24px;stroke-width:2}
-/* iOS: round glass toolbar buttons; only Add carries the tint, Settings stays neutral */
-.zw-ios .fab>a{border-radius:50%;box-shadow:0 4px 18px rgba(0,0,0,.18)}
-.zw-ios .fab:not(.fab-gear)>a{background:var(--f7-theme-color);color:#fff}
-.zw-ios .fab-gear>a{background:rgba(255,255,255,.72);color:#000;-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);box-shadow:0 4px 18px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.08)}
-.zw-ios.dark .fab-gear>a,.zw-ios .dark .fab-gear>a{background:rgba(58,58,60,.72);color:#fff;box-shadow:0 4px 18px rgba(0,0,0,.4),0 0 0 .5px rgba(255,255,255,.1)}
-/* Material 3: one FAB (Add, F7's rounded-square primary-container default); Settings lives in the top app bar */
-.zw-md .fab-gear,.zw-ios .zw-md-only{display:none}
-.zw-md #gear-top{color:var(--f7-md-on-surface-variant)}
+/* machines */
 .card.machine{overflow:hidden}
 .zw-ios .card.machine{border-radius:20px}
 .card.machine .list{margin:0}
@@ -77,3 +66,37 @@
    Framework7 top chrome (navbar, page offsets) down by an extra gap. */
 html.ios.zw-standalone{--zw-top-gap:16px;--f7-safe-area-top:calc(env(safe-area-inset-top,0px) + var(--zw-top-gap))}
 html.ios.zw-standalone .offline{padding-top:calc(env(safe-area-inset-top) + var(--zw-top-gap) + 4px)}
+
+/* ---------- navigation ----------
+   Phone: Framework7's bottom tab bar (iOS) / navigation bar (Material).
+   Wide (>= 768px, html.zw-wide toggled live by App.vue):
+   iOS: floating capsule at the top center, labels only.
+   Material: 72px navigation rail on the left with the FAB at its top. */
+.zw-nav i.icon{width:var(--f7-tabbar-icon-size)}
+.zw-nav i.icon .ico{width:100%;height:100%}
+.fab>a .ico{width:24px;height:24px;stroke-width:2}
+/* Material phone: FAB bottom right, above the navigation bar */
+.zw-fab{position:fixed;z-index:5002}
+.zw-md:not(.zw-wide) .zw-fab{right:calc(16px + var(--f7-safe-area-right));bottom:calc(var(--f7-tabbar-icons-height) + var(--f7-safe-area-bottom) + 16px)}
+
+.zw-wide .views>.view{--f7-page-toolbar-bottom-offset:0px}
+
+/* iOS wide: top capsule; navbars move down below it */
+.zw-ios.zw-wide{--zw-capsule-top:calc(env(safe-area-inset-top,0px) + var(--zw-top-gap,0px) + 8px)}
+.zw-ios.zw-wide .views>.view{--f7-safe-area-top:calc(var(--zw-capsule-top) + 48px)}
+.zw-ios.zw-wide .zw-nav{position:fixed;top:var(--zw-capsule-top);bottom:auto;left:50%;transform:translateX(-50%);width:auto;height:40px;--f7-toolbar-height:40px;border-radius:999px;overflow:hidden;background:var(--zw-capsule-bg);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);box-shadow:0 2px 12px rgba(0,0,0,.1),0 0 0 .5px rgba(0,0,0,.08)}
+.zw-ios.zw-wide .zw-nav::before,.zw-ios.zw-wide .zw-nav::after{display:none}
+.zw-ios.zw-wide .zw-nav .toolbar-inner{position:static;height:100%;padding:3px;gap:2px;background:none;border-radius:inherit}
+.zw-ios.zw-wide .zw-nav .tab-link{width:auto;height:100%;padding:0 18px;border-radius:999px;flex-direction:row}
+.zw-ios.zw-wide .zw-nav .tab-link .icon{display:none}
+.zw-ios.zw-wide .zw-nav .tabbar-label{font-size:15px;font-weight:600}
+.zw-ios.zw-wide .zw-nav .tab-link-active{background:rgba(120,120,128,.16)}
+.zw-ios{--zw-capsule-bg:rgba(255,255,255,.75)}
+.zw-ios.dark,.zw-ios .dark{--zw-capsule-bg:rgba(44,44,46,.75)}
+
+/* Material wide: left navigation rail */
+.zw-md.zw-wide .views>.view{margin-left:calc(72px + var(--f7-safe-area-left));width:auto}
+.zw-md.zw-wide .zw-nav{position:fixed;top:0;bottom:0;left:0;width:calc(72px + var(--f7-safe-area-left));height:auto;transform:none}
+.zw-md.zw-wide .zw-nav .toolbar-inner{position:absolute;inset:0;height:auto;flex-direction:column;justify-content:flex-start;align-items:stretch;gap:12px;padding:calc(var(--f7-safe-area-top) + 96px) 0 0 var(--f7-safe-area-left)}
+.zw-md.zw-wide .zw-nav .tab-link{height:56px;flex:none}
+.zw-md.zw-wide .zw-fab{left:calc(8px + var(--f7-safe-area-left));top:calc(var(--f7-safe-area-top) + 16px);right:auto;bottom:auto}
