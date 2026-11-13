@@ -71,17 +71,17 @@ async function confirmPower(kind) {
     </div>
     <div class="card-footer actions">
       <template v-if="mode === 'power'">
-        <button class="button" type="button" :disabled="!!t" @click="confirmPower('reboot')">
+        <button class="button" type="button" :class="{ disabled: !!t }" :disabled="!!t" @click="confirmPower('reboot')">
           <Icon name="redo" /><span>{{ ACTION.reboot }}</span>
         </button>
-        <button class="button color-red" type="button" :disabled="!!t" @click="confirmPower('poweroff')">
+        <button class="button color-red" type="button" :class="{ disabled: !!t }" :disabled="!!t" @click="confirmPower('poweroff')">
           <Icon name="power" /><span>{{ ACTION.poweroff }}</span>
         </button>
       </template>
-      <button v-else-if="mode !== 'wake'" class="button" type="button" :disabled="!!t" @click="pair">
+      <button v-else-if="mode !== 'wake'" class="button" type="button" :class="{ disabled: !!t }" :disabled="!!t" @click="pair">
         <Icon name="redo" /><span>{{ mode === "err" ? "Agent: " + st.agent_error : "Agent unreachable" }} · Pair</span>
       </button>
-      <button v-else class="button" type="button" :disabled="!!t" @click="wake(machine)">
+      <button v-else class="button" type="button" :class="{ disabled: !!t }" :disabled="!!t" @click="wake(machine)">
         <Icon name="power" /><span>{{ ACTION.wake }}</span>
       </button>
       <slot name="trailing" />
