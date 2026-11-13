@@ -3,10 +3,14 @@ import { computed, provide, ref } from "vue";
 import { f7ready, theme } from "framework7-vue/bundle";
 import Icon from "./components/Icon.vue";
 import MachinesPage from "./pages/MachinesPage.vue";
+import MachinePage from "./pages/MachinePage.vue";
+import PairPage from "./pages/PairPage.vue";
 import SettingsPage from "./pages/SettingsPage.vue";
 import { applyScheme } from "./lib/prefs.js";
 import { installBackGuard } from "./lib/back.js";
 import { state as machines, startPolling } from "./lib/machines.js";
+import { api, offlineMsg } from "./lib/api.js";
+import { toast } from "./lib/ui.js";
 
 const props = defineProps({ f7params: { type: Object, required: true } });
 
@@ -21,10 +25,34 @@ const tabs = [
 const addFor = { "view-machines": "/machine/new/" };
 provide("addFor", addFor);
 
+// Finds the machine in the store, or fetches the list once (deep link) and
+// rejects with a toast when it does not exist.
+function machineRoute(component) {
+  const done = (resolve, machine) => resolve({ component }, { props: { machine } });
+  return async ({ to, resolve, reject }) => {
+    const id = to.params.id;
+    const m = machines.machines.find((x) => x.id === id);
+    if (m) return done(resolve, m);
+    try {
+      machines.machines = await api("GET", "/machines");
+      machines.loaded = true;
+      const found = machines.machines.find((x) => x.id === id);
+      if (found) return done(resolve, found);
+      toast("Machine not found");
+    } catch (e) {
+      toast(offlineMsg(e));
+    }
+    reject();
+  };
+}
+
 const params = {
   ...props.f7params,
   routes: [
     { path: "/", component: MachinesPage },
+    { path: "/machine/new/", component: MachinePage },
+    { path: "/machine/:id/pair/", async: machineRoute(PairPage) },
+    { path: "/machine/:id/", async: machineRoute(MachinePage) },
     { path: "/settings/", component: SettingsPage },
   ],
 };
