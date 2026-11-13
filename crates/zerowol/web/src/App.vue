@@ -68,9 +68,15 @@ setWide();
 wideQuery.addEventListener("change", setWide);
 
 const activeTab = ref(tabs[0].id);
-const fabUrl = computed(() => (IOS ? null : addFor[activeTab.value]));
+// The add FAB belongs to a tab's root page only, not to its sub-pages.
+const atRoot = ref(true);
+const fabUrl = computed(() => (IOS || !atRoot.value ? null : addFor[activeTab.value]));
 let f7app = null;
 const viewOf = (id) => f7app && f7app.views.get("#" + id);
+const syncRoot = () => {
+  const v = viewOf(activeTab.value);
+  atRoot.value = !v || !v.router || v.router.history.length <= 1;
+};
 
 f7ready((f7) => {
   f7app = f7;
@@ -78,7 +84,10 @@ f7ready((f7) => {
   startPolling();
   f7.on("tabShow", (el) => {
     if (el && el.id) activeTab.value = el.id;
+    syncRoot();
   });
+  f7.on("routeChanged", syncRoot);
+  f7.on("pageAfterIn", syncRoot);
   if (!IOS) installBackGuard(f7, () => viewOf(activeTab.value));
 });
 

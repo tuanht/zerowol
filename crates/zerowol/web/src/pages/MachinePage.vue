@@ -40,8 +40,8 @@ async function save() {
   err.value = "";
   const body = { name: form.name.trim(), mac: form.mac.trim(), ip: form.ip.trim(), agent: form.agent };
   if (form.broadcast.trim()) body.broadcast = form.broadcast.trim();
-  if (form.wol_port) body.wol_port = +form.wol_port;
-  if (form.probe_port) body.probe_port = +form.probe_port;
+  if (form.wol_port !== "" && form.wol_port != null) body.wol_port = +form.wol_port;
+  if (form.probe_port !== "" && form.probe_port != null) body.probe_port = +form.probe_port;
   busy.value = true;
   try {
     const r = m ? await api("PATCH", "/machines/" + m.id, body) : await api("POST", "/machines", body);

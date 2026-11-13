@@ -21,6 +21,7 @@ web:
 # CI: the committed dist must match a fresh build and stay within the gzip budget.
 web-check: web
 	git diff --exit-code crates/zerowol/web/dist
+	@test -z "$$(git status --porcelain crates/zerowol/web/dist)" || { echo "web/dist has untracked or modified files:"; git status --porcelain crates/zerowol/web/dist; exit 1; }
 	node scripts/web-size.mjs
 
 # Vite dev server with hot reload (opens /dev.html); proxies /api and /agent to

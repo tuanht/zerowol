@@ -69,6 +69,7 @@ for (const [theme, device] of [["ios", "iPhone 15"], ["md", "Pixel 7"]]) {
     await page.fill(`${CUR} #f-mac`, "D8:5E:D3:DB:F7:6B");
     await page.fill(`${CUR} #f-ip`, "127.0.0.1");
     await page.click(`${CUR} .toggle`);
+    if (theme === "md" && (await page.locator(".zw-fab:visible").count())) fail("md shows a FAB on the add page");
     await shot("add");
     await page.click(`${CUR} .button-fill`);
     await page.waitForSelector(`${CUR}[data-name=pair] >> text=Waiting for agent`);
@@ -79,6 +80,7 @@ for (const [theme, device] of [["ios", "iPhone 15"], ["md", "Pixel 7"]]) {
     await page.click(`${CUR} .card.machine .item-link`);
     await page.waitForSelector(`${CUR}[data-name=machine] #f-name`);
     if ((await page.inputValue(`${CUR} #f-name`)) !== "Desktop") fail("edit page prefill");
+    if (theme === "md" && (await page.locator(".zw-fab:visible").count())) fail("md shows a FAB on the edit page");
     await shot("edit");
     await back(page);
     // 127.0.0.1 has no agent, so the machine shows offline: report it as online and

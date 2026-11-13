@@ -90,6 +90,28 @@ const cases = {
       if (new URL(p.url()).origin !== origin) throw new Error("left the app: " + p.url());
     },
   },
+  "FAB only on the Machines root (md)": {
+    only: "md",
+    run: async (p) => {
+      const fab = () => p.locator(".zw-fab:visible").count();
+      if ((await fab()) !== 1) throw new Error("no FAB on the Machines root");
+      await openMachine(p);
+      if ((await fab()) !== 0) throw new Error("FAB on the edit page");
+      await back(p);
+      if ((await fab()) !== 1) throw new Error("FAB missing after back");
+      await p.click(".zw-fab a");
+      await p.waitForSelector(`${CUR}[data-name=machine] #f-name`);
+      await p.waitForTimeout(500);
+      if ((await fab()) !== 0) throw new Error("FAB on the add page");
+      await back(p);
+      if ((await fab()) !== 1) throw new Error("FAB missing after back from add");
+      await openMachine(p);
+      await p.goBack(); // Android back path
+      await p.waitForSelector(`${CUR}[data-name=machines]`, { timeout: SETTLE });
+      await p.waitForTimeout(450);
+      if ((await fab()) !== 1) throw new Error("FAB missing after system back");
+    },
+  },
   "resize switches nav layout": async (p, theme) => {
     const vp = p.viewportSize();
     const nav = () => p.evaluate(() => {
