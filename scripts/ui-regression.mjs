@@ -139,9 +139,24 @@ const cases = {
       await p.click(".dialog.modal-in .dialog-button:has-text('Cancel')");
       await p.waitForTimeout(400);
       if (await p.evaluate(() => window.__x !== undefined)) throw new Error("machine name was run as HTML");
-    } finally {
+      // Toast: back to its real (offline) status, Wake it, and have the server
+      // answer "already online" so the app toasts "<name> is already online".
       await p.unroute("**/api/v1/machines");
-      await p.evaluate((id) => fetch("/api/v1/machines/" + id, { method: "DELETE" }), id);
+      await p.route(`**/api/v1/machines/${id}/wake`, (route) =>
+        route.fulfill({ json: { result: "already online" } }));
+      await p.reload();
+      const offCard = p.locator(CARDS).filter({ hasText: HOSTILE });
+      await offCard.locator("button:has-text('Wake')").click();
+      const toast = p.locator(".toast").filter({ hasText: "is already online" });
+      await toast.waitFor({ timeout: SETTLE });
+      const tt = await toast.innerText();
+      if (!tt.includes("<img")) throw new Error("toast does not show the name as text: " + JSON.stringify(tt));
+      if (await p.evaluate(() => window.__x !== undefined)) throw new Error("machine name was run as HTML in the toast");
+    } finally {
+      await p.unrouteAll({ behavior: "ignoreErrors" });
+      const status = await p.evaluate(
+        async (id) => (await fetch("/api/v1/machines/" + id, { method: "DELETE" })).status, id);
+      if (status < 200 || status >= 300) throw new Error(`cleanup: DELETE of the hostile machine returned ${status}`);
     }
     await p.reload();
     await p.waitForSelector(CARDS);
