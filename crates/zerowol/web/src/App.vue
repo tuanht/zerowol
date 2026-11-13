@@ -6,6 +6,7 @@ import MachinesPage from "./pages/MachinesPage.vue";
 import SettingsPage from "./pages/SettingsPage.vue";
 import { applyScheme } from "./lib/prefs.js";
 import { installBackGuard } from "./lib/back.js";
+import { startPolling } from "./lib/machines.js";
 
 const props = defineProps({ f7params: { type: Object, required: true } });
 
@@ -46,6 +47,7 @@ const viewOf = (id) => f7app && f7app.views.get("#" + id);
 f7ready((f7) => {
   f7app = f7;
   applyScheme(f7);
+  startPolling();
   f7.on("tabShow", (el) => {
     if (el && el.id) activeTab.value = el.id;
   });

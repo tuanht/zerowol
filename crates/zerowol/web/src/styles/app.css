@@ -100,3 +100,6 @@ html.ios.zw-standalone .offline{padding-top:calc(env(safe-area-inset-top) + var(
 .zw-md.zw-wide .zw-nav .toolbar-inner{position:absolute;inset:0;height:auto;flex-direction:column;justify-content:flex-start;align-items:stretch;gap:12px;padding:calc(var(--f7-safe-area-top) + 96px) 0 0 var(--f7-safe-area-left)}
 .zw-md.zw-wide .zw-nav .tab-link{height:56px;flex:none}
 .zw-md.zw-wide .zw-fab{left:calc(8px + var(--f7-safe-area-left));top:calc(var(--f7-safe-area-top) + 16px);right:auto;bottom:auto}
+
+/* machines grid: one column on phones, auto-fill when wide (cards keep their own margins) */
+.zw-wide .zw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
