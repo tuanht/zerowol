@@ -95,6 +95,9 @@ const cases = {
     run: async (p) => {
       const fab = () => p.locator(".zw-fab:visible").count();
       if ((await fab()) !== 1) throw new Error("no FAB on the Machines root");
+      // Material guideline: FAB sits 16dp above the bottom navigation bar
+      const gap = await p.evaluate(() => document.querySelector(".toolbar.zw-nav").getBoundingClientRect().top - document.querySelector(".zw-fab").getBoundingClientRect().bottom);
+      if (Math.abs(gap - 16) > 2) throw new Error(`FAB is ${gap}px above the navigation bar, want 16`);
       await openMachine(p);
       if ((await fab()) !== 0) throw new Error("FAB on the edit page");
       await back(p);

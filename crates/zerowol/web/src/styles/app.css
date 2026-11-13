@@ -67,9 +67,9 @@ html.ios.zw-standalone .offline{padding-top:calc(env(safe-area-inset-top) + var(
 .zw-nav i.icon{width:var(--f7-tabbar-icon-size)}
 .zw-nav i.icon .ico{width:100%;height:100%}
 .fab>a .ico{width:24px;height:24px;stroke-width:2}
-/* Material phone: FAB bottom right, above the navigation bar */
+/* Material phone: Framework7's fab-right-bottom already sits 16px above the
+   bottom tab bar (it adds the bar height itself), so only the rail moves it. */
 .zw-fab{position:fixed;z-index:5002}
-.zw-md:not(.zw-wide) .zw-fab{right:calc(16px + var(--f7-safe-area-right));bottom:calc(var(--f7-tabbar-icons-height) + var(--f7-safe-area-bottom) + 16px)}
 
 .zw-wide .views>.view{--f7-page-toolbar-bottom-offset:0px}
 
