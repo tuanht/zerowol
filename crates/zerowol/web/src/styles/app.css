@@ -51,11 +51,11 @@
 /* action blocks align with the inset cards/lists */
 .page-content>.block.zw-actions{padding-left:0;padding-right:0}
 
-/* Installed iOS PWA: the OS draws a blurred status-bar band taller than
+/* Installed iOS PWA (any theme, html.zw-ios-pwa set in main.js): the OS draws a blurred status-bar band taller than
    safe-area-inset-top, which smears the top of navbar buttons. Push all
    Framework7 top chrome (navbar, page offsets) down by an extra gap. */
-html.ios.zw-standalone{--zw-top-gap:16px;--f7-safe-area-top:calc(env(safe-area-inset-top,0px) + var(--zw-top-gap))}
-html.ios.zw-standalone .offline{padding-top:calc(env(safe-area-inset-top) + var(--zw-top-gap) + 4px)}
+html.zw-ios-pwa{--zw-top-gap:16px;--f7-safe-area-top:calc(env(safe-area-inset-top,0px) + var(--zw-top-gap))}
+html.zw-ios-pwa .offline{padding-top:calc(env(safe-area-inset-top) + var(--zw-top-gap) + 4px)}
 
 /* ---------- navigation ----------
    Phone: iOS floating bottom capsule / Material bottom navigation bar.

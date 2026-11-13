@@ -265,6 +265,33 @@ for (const [theme, device] of [["md", "Pixel 7"], ["ios", "iPhone 15"]]) {
     await ctx.close();
   }
 }
+// iPhone home-screen app: iOS blurs a band below the status bar whichever theme is picked,
+// so both themes must push the navbar title down by the extra 16px gap (compared with Safari).
+async function largeTitleTop(theme, standalone) {
+  const ctx = await browser.newContext({ ...devices["iPhone 15"] });
+  await ctx.addInitScript((t) => localStorage.setItem("zw-theme", t), theme);
+  await ctx.addInitScript(noPoll);
+  if (standalone) await ctx.addInitScript(() => Object.defineProperty(Navigator.prototype, "standalone", { get: () => true }));
+  const page = await ctx.newPage();
+  try {
+    await page.goto(base);
+    await page.waitForSelector(CARDS);
+    return await page.evaluate((cur) => document.querySelector(cur + " .navbar .title-large-text").getBoundingClientRect().top, CUR);
+  } finally {
+    await ctx.close();
+  }
+}
+for (const theme of ["ios", "md"]) {
+  const label = `[${theme}] iPhone home-screen app: title clear of the status-bar blur`;
+  try {
+    const shift = (await largeTitleTop(theme, true)) - (await largeTitleTop(theme, false));
+    if (Math.abs(shift - 16) > 1) throw new Error(`title moved ${shift}px down in the home-screen app, want 16`);
+    console.log("PASS ", label);
+  } catch (e) {
+    failures++;
+    console.error("FAIL ", label, "-", e.message.split("\n")[0]);
+  }
+}
 await browser.close();
 if (failures) { console.error(`${failures} UI regression case(s) failed`); process.exit(1); }
 console.log("all UI regression cases passed");

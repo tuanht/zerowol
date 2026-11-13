@@ -37,9 +37,9 @@ Framework7.use(Framework7Vue, { theme });
 
 // Old installs may carry a "#!/..." hash from the previous router; start clean.
 if (location.hash) history.replaceState(null, "", location.pathname + location.search);
-if (navigator.standalone || matchMedia("(display-mode: standalone)").matches) {
-  document.documentElement.classList.add("zw-standalone");
-}
+// navigator.standalone exists only in iOS/iPadOS home-screen apps: the OS blurs a band below the
+// status bar there whichever theme is picked, so this keys on the device, not on Framework7's theme class.
+if (navigator.standalone) document.documentElement.classList.add("zw-ios-pwa");
 
 const f7params = {
   name: "zerowol",
