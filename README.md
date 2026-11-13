@@ -132,6 +132,7 @@ make dist     # static x86_64 binary with both agents embedded -> dist/zerowol (
 make image    # docker build -t zerowol:latest .
 make smoke    # end-to-end test: server + agent on loopback (uses port 9009)
 make web      # rebuild the web UI into crates/zerowol/web/dist (npm ci, vitest, vite build)
+make web-check # make web, then fail if the committed dist/ differs or exceeds the size budget
 make web-dev  # Vite dev server with hot reload, proxying /api to `make dev` on port 8090
 ```
 
@@ -149,18 +150,18 @@ git tag v0.1.0 && git push origin v0.1.0
 
 GHCR packages start private. After the first publish, make the package public under the repository's Packages settings on GitHub.
 
-The web UI is a Vue 3 + [Framework7](https://framework7.io)-Vue app (both MIT) in `crates/zerowol/web/src`, built with `make web` into the committed `web/dist/` and embedded into the binary. The theme automatically matches iOS or Android (Material) based on the device, and can be overridden in Settings.
+The web UI is a Vue 3 + Framework7-Vue app in `crates/zerowol/web/src`, built with `make web` into the committed `web/dist/` and embedded into the binary (Vue and [Framework7](https://framework7.io) are MIT-licensed). The theme automatically matches iOS or Android (Material) based on the device, and can be overridden in Settings.
 
 ### Development server with fake machines
 
-`make dev` runs a local server (data in `target/dev-data`, port 8090) built with the `dev-fakes` feature and `ZEROWOL_DEV_FAKES=1`. It seeds five fake machines (ids starting with `dev-`, IPs in the unroutable 192.0.2.0/24) whose status and power actions are simulated: a paired Workstation that shuts down/restarts, a Media PC that wakes, a Laptop with an unreachable agent, a Gaming PC whose agent rejects requests (clock skew), and an Old Server that never wakes (to see the timeout). The feature is off by default, so release, `make dist` and Docker builds don't contain this code and ignore the variable.
+`make dev` runs a local server (data in `target/dev-data`, port 8090) built with the `dev-fakes` feature and `ZEROWOL_DEV_FAKES=1`. It seeds five fake machines (ids starting with `dev-`, IPs in the unroutable 192.0.2.0/24) whose status and power actions are simulated: a paired Workstation that powers off/reboots, a Media PC that wakes, a Laptop with an unreachable agent, a Gaming PC whose agent rejects requests (clock skew), and an Old Server that never wakes (to see the timeout). The feature is off by default, so release, `make dist` and Docker builds don't contain this code and ignore the variable.
 
 ## Screenshots
 
 Screenshots are not committed. Generate them against a throwaway instance (the script deletes all machines on its target):
 
 ```sh
-ZEROWOL_DATA=$(mktemp -d) ZEROWOL_PORT=18090 cargo run -p zerowol &
+ZEROWOL_DATA=$(mktemp -d) ZEROWOL_PORT=18090 ZEROWOL_BIND=127.0.0.1 cargo run -p zerowol &
 NODE_PATH=$(npm root -g) node scripts/ui-check.mjs http://127.0.0.1:18090
 ```
 

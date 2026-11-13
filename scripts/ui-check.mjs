@@ -1,7 +1,8 @@
 // WARNING: this script DELETES ALL MACHINES on the target server (and removes the tokens it creates).
-// Point it only at a throwaway instance, e.g. ZEROWOL_DATA=$(mktemp -d) ZEROWOL_PORT=18090 cargo run -p zerowol
-// Usage: NODE_PATH=$(npm root -g) node scripts/ui-check.mjs http://127.0.0.1:8090
-// Writes screenshots (ios/md x light/dark x list, edit, pairing, confirm, settings) to ./screenshots/.
+// Point it only at a throwaway instance, e.g. ZEROWOL_DATA=$(mktemp -d) ZEROWOL_PORT=18090 ZEROWOL_BIND=127.0.0.1 cargo run -p zerowol
+// Usage: NODE_PATH=$(npm root -g) node scripts/ui-check.mjs http://127.0.0.1:18090
+// Writes screenshots (ios/md x light/dark x empty, add, pairing, list, edit, confirm, settings,
+// plus 1280x800 list-wide and settings-wide) to ./screenshots/.
 import { createRequire } from "node:module";
 import { mkdirSync } from "node:fs";
 const require = createRequire(import.meta.url);
@@ -20,7 +21,16 @@ mkdirSync("screenshots", { recursive: true });
 const browser = await chromium.launch();
 let errors = 0;
 const fail = (msg) => { errors++; console.error("FAIL:", msg); };
-const GEAR = "#gear:visible, #gear-top:visible"; // bottom button on iOS, top app bar on Material
+const CUR = ".view.tab-active .page-current";
+const appTheme = (page) => page.evaluate(() => (document.documentElement.classList.contains("zw-ios") ? "ios" : "md"));
+const tab = async (page, label) => {
+  await page.click(`.toolbar .tab-link:has-text('${label}')`);
+  await page.waitForTimeout(300);
+};
+const back = async (page) => {
+  await page.click(`${CUR} .navbar .left .back`);
+  await page.waitForTimeout(600);
+};
 for (const [theme, device] of [["ios", "iPhone 15"], ["md", "Pixel 7"]]) {
   for (const scheme of ["light", "dark"]) {
     const ctx = await browser.newContext({ ...devices[device], colorScheme: scheme });
@@ -32,7 +42,8 @@ for (const [theme, device] of [["ios", "iPhone 15"], ["md", "Pixel 7"]]) {
       for (const m of await (await fetch("/api/v1/machines")).json()) await fetch("/api/v1/machines/" + m.id, { method: "DELETE" });
     });
     await page.reload();
-    const got = await page.evaluate(() => app.theme);
+    await page.waitForSelector(`${CUR}[data-name=machines] .empty`);
+    const got = await appTheme(page);
     if (got !== theme) fail(`${device}: expected theme ${theme}, got ${got}`);
     const shot = async (name) => {
       await page.waitForTimeout(600);
@@ -40,43 +51,67 @@ for (const [theme, device] of [["ios", "iPhone 15"], ["md", "Pixel 7"]]) {
       await page.screenshot({ path: p });
       console.log("wrote", p);
     };
-    // iOS: settings bottom-left, add bottom-right. Material: one FAB (add) bottom-right, settings in the top app bar.
-    const g = await page.locator(GEAR).boundingBox(), a = await page.locator("#add").boundingBox();
+    // Phone layout: tab bar at the bottom. Add: iOS "+" in the navbar (top right),
+    // Material a FAB above the tab bar (bottom right).
     const vp = page.viewportSize();
-    const gearOk = theme === "ios" ? g.x < vp.width / 2 && g.y > vp.height / 2 : g.x > vp.width / 2 && g.y < vp.height / 4;
-    if (!(gearOk && a.x > vp.width / 2 && a.y > vp.height / 2)) fail("button positions");
-    if (theme === "md" && (await page.locator("#gear").isVisible())) fail("md shows bottom gear");
+    const nav = await page.locator(".toolbar.zw-nav").boundingBox();
+    if (!(Math.abs(nav.y + nav.height - vp.height) <= 2)) fail("tab bar not at the bottom");
+    const ADD = theme === "ios" ? `${CUR} .navbar [aria-label="Add Machine"]` : ".zw-fab a";
+    const a = await page.locator(ADD).boundingBox();
+    const addOk = theme === "ios" ? a.x > vp.width / 2 && a.y < vp.height / 4 : a.x > vp.width / 2 && a.y > vp.height / 2 && a.y < nav.y;
+    if (!addOk) fail("add button position");
+    if (theme === "ios" && (await page.locator(".zw-fab").count())) fail("ios shows a FAB");
     await shot("empty");
-    await page.click("#add");
-    await page.waitForSelector(".page[data-name=machine] #f-name");
-    await page.fill("#f-name", "Desktop");
-    await page.fill("#f-mac", "D8:5E:D3:DB:F7:6B");
-    await page.fill("#f-ip", "127.0.0.1");
-    await page.click(".page[data-name=machine] .toggle");
-    await shot("add");
-    await page.click(".page[data-name=machine] .button-fill");
-    await page.waitForSelector("text=Waiting for agent");
-    await shot("pairing");
-    await page.click(".page[data-name=pair] .navbar .link.back");
-    await page.waitForSelector(".card.machine .name");
-    await shot("list");
-    await page.click(".card.machine .item-link");
-    await page.waitForSelector(".page[data-name=machine] #f-name");
-    if ((await page.inputValue("#f-name")) !== "Desktop") fail("edit page prefill");
-    await shot("edit");
-    await page.click(".page[data-name=machine] .navbar .link.back");
-    await page.waitForTimeout(600);
-    // 127.0.0.1 has no agent, so the machine shows offline: open the confirm dialog via the app's own function.
-    await page.evaluate(() => confirmPower(machines[0], "shutdown"));
-    await shot("confirm");
-    await page.click(".dialog-button >> text=Cancel");
+    await page.click(ADD);
+    await page.waitForSelector(`${CUR}[data-name=machine] #f-name`);
     await page.waitForTimeout(400);
-    await page.click(GEAR);
-    await page.waitForSelector(".page[data-name=settings]");
-    await page.fill('input[placeholder="Token name"]', "home-script");
-    await page.click('.page[data-name=settings] a.link:text-is("Create")');
+    await page.fill(`${CUR} #f-name`, "Desktop");
+    await page.fill(`${CUR} #f-mac`, "D8:5E:D3:DB:F7:6B");
+    await page.fill(`${CUR} #f-ip`, "127.0.0.1");
+    await page.click(`${CUR} .toggle`);
+    await shot("add");
+    await page.click(`${CUR} .button-fill`);
+    await page.waitForSelector(`${CUR}[data-name=pair] >> text=Waiting for agent`);
+    await shot("pairing");
+    await back(page);
+    await page.waitForSelector(`${CUR} .card.machine .name`);
+    await shot("list");
+    await page.click(`${CUR} .card.machine .item-link`);
+    await page.waitForSelector(`${CUR}[data-name=machine] #f-name`);
+    if ((await page.inputValue(`${CUR} #f-name`)) !== "Desktop") fail("edit page prefill");
+    await shot("edit");
+    await back(page);
+    // 127.0.0.1 has no agent, so the machine shows offline: report it as online and
+    // paired to show the Power off button and its confirm dialog.
+    await page.route("**/api/v1/machines", async (route) => {
+      if (route.request().method() !== "GET") return route.continue();
+      const res = await route.fetch();
+      const list = await res.json();
+      for (const m of list) m.status = { online: true, agent: "paired", hostname: "desktop", uptime: 7380 };
+      await route.fulfill({ response: res, json: list });
+    });
+    await page.reload();
+    await page.click(`${CUR} .card.machine button:has-text('Power off')`);
+    await page.waitForSelector(".dialog.modal-in");
+    await shot("confirm");
+    await page.click(".dialog.modal-in .dialog-button:has-text('Cancel')");
+    await page.waitForTimeout(400);
+    await tab(page, "Settings");
+    await page.waitForSelector(`${CUR}[data-name=settings]`);
+    await page.fill(`${CUR} input[placeholder="Token name"]`, "home-script");
+    await page.click(`${CUR} a.link:text-is("Create")`);
     await page.waitForSelector("text=won't be shown again");
     await shot("settings");
+    // Wide (tablet/desktop) layout, switched live: iOS capsule at the top, Material rail on the left.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.waitForTimeout(400);
+    const w = await page.locator(".toolbar.zw-nav").boundingBox();
+    if (theme === "ios" ? !(w.y < 40) : !(w.x === 0 && w.width <= 80)) fail("wide navigation layout");
+    await shot("settings-wide");
+    await tab(page, "Machines");
+    await page.waitForSelector(`${CUR}[data-name=machines] .card.machine`);
+    await shot("list-wide");
+    await page.unroute("**/api/v1/machines");
     await page.evaluate(async () => {
       for (const t of await (await fetch("/api/v1/tokens")).json()) await fetch("/api/v1/tokens/" + t.id, { method: "DELETE" });
     });
@@ -87,22 +122,22 @@ for (const [theme, device] of [["ios", "iPhone 15"], ["md", "Pixel 7"]]) {
 {
   const ctx = await browser.newContext({ ...devices["iPhone 15"] });
   const page = await ctx.newPage();
+  page.on("pageerror", (e) => fail("pageerror: " + e.message));
   await page.goto(base);
-  await page.click(GEAR);
-  await page.waitForSelector(".page[data-name=settings]");
-  await Promise.all([page.waitForEvent("load"), page.click('input[value="md"] + .icon-radio')]);
-  if ((await page.evaluate(() => app.theme)) !== "md") fail("forced md theme on iPhone");
+  await tab(page, "Settings");
+  await page.waitForSelector(`${CUR}[data-name=settings]`);
+  await Promise.all([page.waitForEvent("load"), page.click(`${CUR} input[value="md"] + .icon-radio`)]);
+  if ((await appTheme(page)) !== "md") fail("forced md theme on iPhone");
   // Light/dark override applies live and survives a reload.
-  await page.click(GEAR);
-  await page.waitForSelector(".page[data-name=settings]");
-  await page.click('input[value="dark"] + .icon-radio');
+  await tab(page, "Settings");
+  await page.waitForSelector(`${CUR}[data-name=settings]`);
+  await page.click(`${CUR} input[value="dark"] + .icon-radio`);
   if (!(await page.evaluate(() => document.documentElement.classList.contains("dark")))) fail("forced dark scheme");
   await page.reload();
   if (!(await page.evaluate(() => document.documentElement.classList.contains("dark")))) fail("dark scheme after reload");
-  await page.evaluate(() => { localStorage.removeItem("zw-scheme"); });
-  await page.evaluate(() => localStorage.removeItem("zw-theme"));
+  await page.evaluate(() => { localStorage.removeItem("zw-scheme"); localStorage.removeItem("zw-theme"); });
   await page.reload();
-  if ((await page.evaluate(() => app.theme)) !== "ios") fail("auto theme restored on iPhone");
+  if ((await appTheme(page)) !== "ios") fail("auto theme restored on iPhone");
   await ctx.close();
 }
 await browser.close();
