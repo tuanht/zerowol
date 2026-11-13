@@ -103,3 +103,5 @@ html.ios.zw-standalone .offline{padding-top:calc(env(safe-area-inset-top) + var(
 
 /* machines grid: one column on phones, auto-fill when wide (cards keep their own margins) */
 .zw-wide .zw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+/* Material phone: keep the last card clear of the FAB */
+.zw-md:not(.zw-wide) .page-content{--f7-page-content-extra-padding-bottom:88px}

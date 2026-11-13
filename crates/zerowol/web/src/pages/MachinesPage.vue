@@ -15,7 +15,6 @@ const addUrl = theme.ios ? inject("addFor")["view-machines"] : null;
         <f7-link :href="addUrl" icon-only aria-label="Add Machine"><Icon name="plus" /></f7-link>
       </f7-nav-right>
     </f7-navbar>
-    <div v-if="state.offline" class="offline" role="alert">Can't reach zerowol</div>
     <div v-if="state.loaded && !state.machines.length" class="list inset media-list">
       <ul>
         <li>

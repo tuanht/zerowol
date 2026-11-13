@@ -6,7 +6,7 @@ import MachinesPage from "./pages/MachinesPage.vue";
 import SettingsPage from "./pages/SettingsPage.vue";
 import { applyScheme } from "./lib/prefs.js";
 import { installBackGuard } from "./lib/back.js";
-import { startPolling } from "./lib/machines.js";
+import { state as machines, startPolling } from "./lib/machines.js";
 
 const props = defineProps({ f7params: { type: Object, required: true } });
 
@@ -62,6 +62,7 @@ function add() {
 
 <template>
   <f7-app v-bind="params">
+    <div v-if="machines.offline" class="offline" role="alert">Can't reach zerowol</div>
     <f7-views tabs class="safe-areas">
       <f7-toolbar tabbar icons bottom class="zw-nav">
         <f7-link
