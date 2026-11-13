@@ -87,9 +87,14 @@ html.ios.zw-standalone .offline{padding-top:calc(env(safe-area-inset-top) + var(
 /* Material wide: left navigation rail (Framework7 has none). M3: 80dp wide, FAB centred at the top. */
 .zw-md.zw-wide .views>.view{margin-left:calc(80px + var(--f7-safe-area-left));width:auto}
 .zw-md.zw-wide .zw-nav{position:fixed;top:0;bottom:0;left:0;width:calc(80px + var(--f7-safe-area-left));height:auto;transform:none}
-.zw-md.zw-wide .zw-nav .toolbar-inner{position:absolute;inset:0;height:auto;flex-direction:column;justify-content:flex-start;align-items:stretch;gap:12px;padding:calc(var(--f7-safe-area-top) + 96px) 0 0 var(--f7-safe-area-left)}
+.zw-md.zw-wide .zw-nav .toolbar-inner{position:absolute;inset:0;height:auto;flex-direction:column;justify-content:flex-start;align-items:stretch;gap:12px;padding:calc(var(--f7-safe-area-top) + 84px) 0 0 var(--f7-safe-area-left)}
 .zw-md.zw-wide .zw-nav .tab-link{height:56px;flex:none}
-.zw-md.zw-wide .zw-fab{left:calc(12px + var(--f7-safe-area-left));top:calc(var(--f7-safe-area-top) + 16px);right:auto;bottom:auto;margin:0}
+.zw-md.zw-wide .zw-fab{left:calc(12px + var(--f7-safe-area-left));top:calc(var(--f7-safe-area-top) + 4px);right:auto;bottom:auto;margin:0}
+/* Material wide: small top app bar (title in the 64dp row, FAB centred beside it) instead of the
+   large title, whose empty top row has no actions on Material. Live on resize: CSS only. */
+.zw-md.zw-wide .views>.view{--f7-navbar-large-title-height:0px}
+.zw-md.zw-wide .navbar .title-large{display:none}
+.zw-md.zw-wide .navbar-large .title{opacity:1}
 
 /* machines grid: one column on phones, auto-fill when wide (cards keep their own margins) */
 .zw-wide .zw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
