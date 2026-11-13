@@ -116,12 +116,16 @@ const cases = {
     const vp = p.viewportSize();
     const nav = () => p.evaluate(() => {
       const r = document.querySelector(".toolbar.zw-nav").getBoundingClientRect();
-      return { top: r.top, bottom: r.bottom, left: r.left, width: r.width, ih: innerHeight };
+      return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width, ih: innerHeight, iw: innerWidth };
     });
     await p.setViewportSize({ width: 375, height: 812 });
     await p.waitForTimeout(300);
     let r = await nav();
-    if (Math.abs(r.bottom - r.ih) > 2) throw new Error(`375px: tab bar not at the bottom (${JSON.stringify(r)})`);
+    // iOS: floating capsule a few px above the bottom edge, inset from the sides;
+    // Material: navigation bar flush with the bottom edge.
+    if (theme === "ios" && !(r.ih - r.bottom >= 4 && r.ih - r.bottom <= 40 && r.left >= 8 && r.iw - r.right >= 8))
+      throw new Error(`375px: iOS floating tab bar not at the bottom (${JSON.stringify(r)})`);
+    if (theme === "md" && Math.abs(r.bottom - r.ih) > 2) throw new Error(`375px: tab bar not at the bottom (${JSON.stringify(r)})`);
     await p.setViewportSize({ width: 1280, height: 800 });
     await p.waitForTimeout(300);
     r = await nav();

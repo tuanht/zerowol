@@ -51,11 +51,12 @@ for (const [theme, device] of [["ios", "iPhone 15"], ["md", "Pixel 7"]]) {
       await page.screenshot({ path: p });
       console.log("wrote", p);
     };
-    // Phone layout: tab bar at the bottom. Add: iOS "+" in the navbar (top right),
+    // Phone layout: tab bar at the bottom (iOS: floating capsule). Add: iOS "+" in the navbar (top right),
     // Material a FAB above the tab bar (bottom right).
     const vp = page.viewportSize();
     const nav = await page.locator(".toolbar.zw-nav").boundingBox();
-    if (!(Math.abs(nav.y + nav.height - vp.height) <= 2)) fail("tab bar not at the bottom");
+    const gap = vp.height - (nav.y + nav.height);
+    if (!(theme === "ios" ? gap >= 4 && gap <= 40 && nav.x >= 8 : Math.abs(gap) <= 2)) fail("tab bar not at the bottom");
     const ADD = theme === "ios" ? `${CUR} .navbar [aria-label="Add Machine"]` : ".zw-fab a";
     const a = await page.locator(ADD).boundingBox();
     const addOk = theme === "ios" ? a.x > vp.width / 2 && a.y < vp.height / 4 : a.x > vp.width / 2 && a.y > vp.height / 2 && a.y < nav.y;

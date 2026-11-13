@@ -68,7 +68,7 @@ html.ios.zw-standalone{--zw-top-gap:16px;--f7-safe-area-top:calc(env(safe-area-i
 html.ios.zw-standalone .offline{padding-top:calc(env(safe-area-inset-top) + var(--zw-top-gap) + 4px)}
 
 /* ---------- navigation ----------
-   Phone: Framework7's bottom tab bar (iOS) / navigation bar (Material).
+   Phone: iOS floating bottom capsule / Material bottom navigation bar.
    Wide (>= 768px, html.zw-wide toggled live by App.vue):
    iOS: floating capsule at the top center, labels only.
    Material: 72px navigation rail on the left with the FAB at its top. */
@@ -80,6 +80,14 @@ html.ios.zw-standalone .offline{padding-top:calc(env(safe-area-inset-top) + var(
 .zw-md:not(.zw-wide) .zw-fab{right:calc(16px + var(--f7-safe-area-right));bottom:calc(var(--f7-tabbar-icons-height) + var(--f7-safe-area-bottom) + 16px)}
 
 .zw-wide .views>.view{--f7-page-toolbar-bottom-offset:0px}
+
+/* iOS phone: floating bottom capsule (iOS 26 style), icons above labels */
+.zw-ios:not(.zw-wide) .views>.view{--f7-page-toolbar-bottom-offset:72px}
+.zw-ios:not(.zw-wide) .zw-nav{left:calc(16px + var(--f7-safe-area-left));right:calc(16px + var(--f7-safe-area-right));bottom:calc(max(var(--f7-safe-area-bottom),8px));width:auto;height:60px;max-width:420px;margin:0 auto;border-radius:999px;overflow:hidden;background:var(--zw-capsule-bg);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);box-shadow:0 4px 16px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.08)}
+.zw-ios:not(.zw-wide) .zw-nav::before,.zw-ios:not(.zw-wide) .zw-nav::after{display:none}
+.zw-ios:not(.zw-wide) .zw-nav .toolbar-inner{position:static;height:100%;padding:4px;gap:2px;background:none;border-radius:inherit}
+.zw-ios:not(.zw-wide) .zw-nav .tab-link{height:100%;border-radius:999px}
+.zw-ios:not(.zw-wide) .zw-nav .tab-link-active{background:rgba(120,120,128,.16)}
 
 /* iOS wide: top capsule; navbars move down below it */
 .zw-ios.zw-wide{--zw-capsule-top:calc(env(safe-area-inset-top,0px) + var(--zw-top-gap,0px) + 8px)}
