@@ -107,7 +107,7 @@ async function scheduleShots(page, shot, vp) {
   await shot("sched-day");
   await editOnce(`${SCHED} .list li:has-text('12:00') a.item-link`, "form-edit");
   await page.click(`${SCHED} .segmented button:has-text('Week')`);
-  await page.waitForSelector(`${SCHED} .segmented button.button-active:has-text('Week')`);
+  await page.waitForSelector(`${SCHED} .segmented button[aria-checked=true]:has-text('Week')`);
   await shot("sched-week");
   await page.click(`${SCHED} .segmented button:has-text('Day')`);
   for (const id of ids) await api(page, "DELETE", "/schedules/" + id);

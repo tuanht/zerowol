@@ -3,6 +3,7 @@ import { computed, nextTick, reactive, ref, watch } from "vue";
 import { f7 } from "framework7-vue";
 import Icon from "./Icon.vue";
 import ZonePicker from "./ZonePicker.vue";
+import Segmented from "./Segmented.vue";
 import { IOS, wide } from "../lib/layout.js";
 import { offlineMsg } from "../lib/api.js";
 import { confirmDialog } from "../lib/ui.js";
@@ -189,22 +190,7 @@ const onClosed = () => closeScheduleForm(shownSeq, result);
                 </div>
               </li>
               <li class="zw-seg-row">
-                <div class="segmented" :class="{ 'segmented-strong': ios }" role="radiogroup" aria-label="Action">
-                  <button
-                    v-for="(label, a) in ACTION"
-                    :key="a"
-                    class="button"
-                    :class="{ 'button-active': draft.action === a, disabled: a !== 'wake' && noAgent }"
-                    type="button"
-                    role="radio"
-                    :aria-checked="draft.action === a"
-                    :disabled="a !== 'wake' && noAgent"
-                    @click="draft.action = a"
-                  >
-                    <span class="dot" :class="a" /><span>{{ label }}</span>
-                  </button>
-                  <span v-if="ios" class="segmented-highlight" />
-                </div>
+                <Segmented v-model="draft.action" :options="ACTION" label="Action" :disabled="noAgent ? ['reboot', 'poweroff'] : []" dots />
               </li>
             </ul>
           </div>

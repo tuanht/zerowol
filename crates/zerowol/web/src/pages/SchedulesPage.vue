@@ -6,7 +6,7 @@ import ZonePicker from "../components/ZonePicker.vue";
 import WeekStrip from "../components/WeekStrip.vue";
 import DayAgenda from "../components/DayAgenda.vue";
 import WeekAgenda from "../components/WeekAgenda.vue";
-import ViewSwitch from "../components/ViewSwitch.vue";
+import Segmented from "../components/Segmented.vue";
 import WeekGrid from "../components/WeekGrid.vue";
 import MonthGrid from "../components/MonthGrid.vue";
 import { IOS, wide } from "../lib/layout.js";
@@ -207,7 +207,7 @@ onBeforeUnmount(() => {
             <a class="link icon-only" href="#" :aria-label="'Next ' + span" @click.prevent="shift(1)"><Icon name="next" /></a>
             <span class="zw-bar-title">{{ title }}</span>
             <div class="zw-bar-seg">
-              <ViewSwitch v-model="view" :views="VIEWS" />
+              <Segmented v-model="view" :options="VIEWS" label="View" />
             </div>
           </div>
           <template v-if="ready && occs.length && !failed">
@@ -218,7 +218,7 @@ onBeforeUnmount(() => {
       </div>
       <template v-else>
         <div class="block">
-          <ViewSwitch v-model="view" :views="VIEWS" />
+          <Segmented v-model="view" :options="VIEWS" label="View" />
         </div>
 
         <WeekStrip :days="days" :selected="view === 'day' ? selected : ''" :today="today" :occurrences="ready ? occs : []" :now="now" @select="pickDay" @week="shift" />

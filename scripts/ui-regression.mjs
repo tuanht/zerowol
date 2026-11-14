@@ -240,9 +240,9 @@ const cases = {
     if (m.block !== "block") throw new Error(`strip's F7 .block has display ${m.block}`);
     if (Math.abs(m.width - m.inner) > 1) throw new Error(`strip ${m.width}px in a ${m.inner}px block`);
     await p.click(`${S} .segmented button:has-text('Week')`);
-    await p.waitForSelector(`${S} .segmented button.button-active:has-text('Week')`);
+    await p.waitForSelector(`${S} .segmented button[aria-checked=true]:has-text('Week')`);
     await p.click(`${S} .segmented button:has-text('Day')`);
-    await p.waitForSelector(`${S} .segmented button.button-active:has-text('Day')`);
+    await p.waitForSelector(`${S} .segmented button[aria-checked=true]:has-text('Day')`);
     await tab(p, "Machines");
   },
   "schedules wide: week grid fits, month grid, popovers, breakpoint keeps the date": async (p) => {
@@ -409,11 +409,11 @@ const cases = {
     await tab(p, "Schedules");
     await p.waitForSelector(`${SCHED} .segmented`);
     await p.click(`${SCHED} .segmented button:has-text('Week')`);
-    await p.waitForSelector(`${SCHED} .segmented button.button-active:has-text('Week')`);
+    await p.waitForSelector(`${SCHED} .segmented button[aria-checked=true]:has-text('Week')`);
     await tab(p, "Machines");
     await p.waitForSelector(`${CUR}[data-name=machines]`);
     await tab(p, "Schedules");
-    await p.waitForSelector(`${SCHED} .segmented button.button-active:has-text('Week')`, { timeout: SETTLE });
+    await p.waitForSelector(`${SCHED} .segmented button[aria-checked=true]:has-text('Week')`, { timeout: SETTLE });
     if (await p.locator(`${SCHED} .zw-day.sel`).count()) throw new Error("a day is selected in Week view");
     await tab(p, "Machines");
   },
@@ -500,7 +500,7 @@ async function openTomorrow(p) {
     await p.waitForTimeout(400);
   }
   await p.click(`${SCHED} .zw-strip .zw-day >> nth=${(i + 1) % 7}`);
-  await p.waitForSelector(`${SCHED} .segmented button.button-active:has-text('Day')`);
+  await p.waitForSelector(`${SCHED} .segmented button[aria-checked=true]:has-text('Day')`);
   await p.waitForSelector(`${SCHED} .zw-day.sel:not(.today)`);
 }
 function addDay(d, n) {

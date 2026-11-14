@@ -145,6 +145,12 @@
    safe-area-inset-top, which smears the top of navbar buttons. Push all
    Framework7 top chrome (navbar, page offsets) down by an extra gap. */
 html.zw-ios-pwa{--zw-top-gap:16px;--f7-safe-area-top:calc(env(safe-area-inset-top,0px) + var(--zw-top-gap))}
+/* Framework7's popup and sheet JS read --f7-popup-push-offset / --f7-sheet-push-offset (= --f7-safe-area-top) with
+   parseInt to place an iOS push popup or sheet. Unregistered, the value is the raw "calc(env(...) + 16px)" text, parseInt gives NaN and F7 falls back to
+   a fixed 44px, so the New schedule sheet slid under the PWA status-bar blur. Typing it as a length makes the
+   computed value a resolved px number F7 can read. No F7 rule changes. */
+@property --f7-popup-push-offset{syntax:"<length>";inherits:true;initial-value:0px}
+@property --f7-sheet-push-offset{syntax:"<length>";inherits:true;initial-value:0px}
 html.zw-ios-pwa .offline{padding-top:calc(env(safe-area-inset-top) + var(--zw-top-gap) + 4px)}
 
 /* ---------- navigation ----------
