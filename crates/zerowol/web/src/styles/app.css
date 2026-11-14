@@ -13,15 +13,15 @@
 .dot.busy{background:var(--zw-amber);animation:zwpulse 1s ease-in-out infinite}
 .busy-t{color:var(--zw-amber)}
 @keyframes zwpulse{50%{opacity:.35}}
-/* iOS: full-width split buttons. Material: Framework7's card footer, buttons at the end (M3 card actions). */
-.zw-ios .card-footer.actions{padding:0;min-height:0;justify-content:stretch;gap:0}
-.zw-ios .card-footer.actions .button{flex:1;height:46px;border-radius:0}
-.zw-ios .card-footer.actions .button+.button{border-left:1px solid var(--f7-card-footer-border-color)}
+/* iOS: tonal capsule buttons (F7 button-tonal/round/large) share the footer; F7's card footer has no gap between children.
+   Material: Framework7's card footer, buttons at the end (M3 card actions). */
+.zw-ios .card-footer.actions{gap:8px}
+.zw-ios .card-footer.actions .button{flex:1}
 .zw-md .card-footer.actions{justify-content:flex-end;gap:8px}
 .card-footer.actions .button{gap:6px;width:auto}
 .card-footer.actions .ico{width:18px;height:18px}
-/* iOS: the schedules cell is icon-only, so it doesn't take an equal share of the split footer */
-.zw-ios .card-footer.actions .zw-sched-btn{flex:none;width:60px}
+/* iOS: the schedules button is an icon-only round button, not an equal share of the footer */
+.zw-ios .card-footer.actions .zw-sched-btn{flex:none;width:var(--f7-button-large-height);padding:0}
 /* our inline clock SVG would sit on a text baseline inside F7's <i class="icon"> (kept for its badge placement) */
 .zw-sched-btn .ico{display:block}
 .foot{max-width:640px;margin-left:auto;margin-right:auto}

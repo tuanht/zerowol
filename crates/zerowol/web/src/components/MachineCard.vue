@@ -9,6 +9,8 @@ import { openMachineSchedules, openScheduleForm, reloadSchedules, schedState } f
 
 const props = defineProps({ machine: { type: Object, required: true } });
 const IOS = !!theme.ios;
+// iOS: Framework7's own tonal capsule buttons at the 48px "large" size (>= 44pt touch target). Material keeps F7's text buttons (M3 card actions).
+const IOSB = IOS ? "button-large button-tonal button-round" : "";
 
 const t = computed(() => inflight.get(props.machine.id));
 const st = computed(() => props.machine.status || {});
@@ -20,7 +22,7 @@ const meta = computed(() => {
     props.machine.ip +
     " · " +
     (on.value ? (s.uptime != null ? "Up " + uptime(s.uptime) : "Online") : "Offline") +
-    (s.agent_error ? " · Agent: " + s.agent_error : "")
+    (s.agent_error ? " · Agent: " + s.agent_error : on.value && props.machine.agent && s.agent !== "paired" ? " · Agent unreachable" : "")
   );
 });
 const mode = computed(() => {
@@ -82,21 +84,21 @@ async function schedules() {
     </div>
     <div class="card-footer actions">
       <template v-if="mode === 'power'">
-        <button class="button" type="button" :class="{ disabled: !!t }" :disabled="!!t" @click="confirmPower('reboot')">
+        <button class="button" type="button" :class="[IOSB, { disabled: !!t }]" :disabled="!!t" @click="confirmPower('reboot')">
           <Icon name="redo" /><span>{{ ACTION.reboot }}</span>
         </button>
-        <button class="button color-red" type="button" :class="{ disabled: !!t }" :disabled="!!t" @click="confirmPower('poweroff')">
+        <button class="button color-red" type="button" :class="[IOSB, { disabled: !!t }]" :disabled="!!t" @click="confirmPower('poweroff')">
           <Icon name="power" /><span>{{ ACTION.poweroff }}</span>
         </button>
       </template>
-      <button v-else-if="mode !== 'wake'" class="button" type="button" :class="{ disabled: !!t }" :disabled="!!t" @click="pair">
-        <Icon name="redo" /><span>{{ mode === "err" ? "Agent: " + st.agent_error : "Agent unreachable" }} · Pair</span>
+      <button v-else-if="mode !== 'wake'" class="button" type="button" :class="[IOSB, { disabled: !!t }]" :disabled="!!t" @click="pair">
+        <Icon name="redo" /><span>Pair agent</span>
       </button>
-      <button v-else class="button" type="button" :class="{ disabled: !!t }" :disabled="!!t" @click="wake(machine)">
+      <button v-else class="button" type="button" :class="[IOSB, { disabled: !!t }]" :disabled="!!t" @click="wake(machine)">
         <Icon name="power" /><span>{{ ACTION.wake }}</span>
       </button>
       <slot name="trailing">
-        <button class="button zw-sched-btn" type="button" aria-label="Schedules" @click="schedules">
+        <button class="button zw-sched-btn" :class="IOSB" type="button" aria-label="Schedules" @click="schedules">
           <i class="icon"><Icon name="clock" /><span v-if="machine.schedules" class="badge color-primary">{{ machine.schedules }}</span></i>
         </button>
       </slot>

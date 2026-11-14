@@ -228,6 +228,21 @@ const cases = {
     const mid = async (loc) => { const b = await loc.boundingBox(); return b.y + b.height / 2; };
     const dy = (await mid(clock.locator("svg"))) - (await mid(wakeBtn.locator("svg")));
     if (Math.abs(dy) > 1.5) throw new Error(`clock icon ${dy}px off the Wake icon's centre line`);
+    // iOS: action buttons are separate tonal capsules (no alert-style vertical hairlines), spaced apart, >= 44pt tall.
+    if (theme === "ios") {
+      const row = await p.$$eval(`${CARDS} .card-footer.actions`, (foots) => foots.map((f) => [...f.querySelectorAll(".button")].map((b) => {
+        const r = b.getBoundingClientRect();
+        return { left: r.left, right: r.right, h: r.height, border: parseFloat(getComputedStyle(b).borderLeftWidth) };
+      })));
+      if (!row.length) throw new Error("no card footers found");
+      for (const btns of row) {
+        btns.forEach((b, i) => {
+          if (b.border > 0) throw new Error("iOS action button has a left border (alert-style divider)");
+          if (b.h < 44) throw new Error(`iOS action button is ${b.h}px tall, under 44pt`);
+          if (i && !(b.left - btns[i - 1].right > 0)) throw new Error("adjacent iOS action buttons have no gap");
+        });
+      }
+    }
     await clock.click();
     const F = ".zw-sched-form.modal-in";
     await p.waitForSelector(F);
