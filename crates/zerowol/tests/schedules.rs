@@ -236,6 +236,44 @@ async fn once_in_past_rejected() {
 }
 
 #[tokio::test]
+async fn far_future_dates_rejected_without_crash() {
+    let (base, _s, _d) = spawn(false).await;
+    set_tz(&base, "America/Los_Angeles").await;
+    let mid = machine(&base, "AA:BB:CC:DD:EE:01", false).await;
+    let s = sched(&base, &mid, "wake", "23:59", json!({"kind":"daily"})).await;
+    let id = s["id"].as_str().unwrap();
+    for date in ["9999-12-31", "9999-12-30", "3000-01-01"] {
+        let (c, v) = call(
+            "POST",
+            &base,
+            "/schedules",
+            Some(json!({"machine_id":mid,"action":"wake","time":"23:59","repeat":{"kind":"once","date":date}})),
+        )
+        .await;
+        assert_eq!((c, err(&v)), (400, "invalid date"), "{date}");
+        let (c, v) = call(
+            "POST",
+            &base,
+            &format!("/schedules/{id}/skip"),
+            Some(json!({"date":date})),
+        )
+        .await;
+        assert_eq!((c, err(&v)), (400, "invalid date"), "{date}");
+    }
+    let (c, v) = call(
+        "GET",
+        &base,
+        "/schedules/occurrences?from=9999-12-01&to=9999-12-31",
+        None,
+    )
+    .await;
+    assert_eq!((c, err(&v)), (400, "invalid range"));
+    // The server is still up.
+    let (c, _) = call("GET", &base, "/schedules", None).await;
+    assert_eq!(c, 200);
+}
+
+#[tokio::test]
 async fn occurrences_shape() {
     let (base, _s, _d) = spawn(false).await;
     set_tz(&base, HCM).await;
@@ -269,6 +307,7 @@ async fn occurrences_shape() {
         from,
         zerowol::schedule::parse_time("08:00").unwrap(),
     )
+    .unwrap()
     .as_second();
     assert_eq!(f["at"].as_i64().unwrap(), expect);
     let ats: Vec<i64> = a.iter().map(|x| x["at"].as_i64().unwrap()).collect();

@@ -17,7 +17,11 @@ pub fn parse_time(s: &str) -> Option<jiff::civil::Time> {
     jiff::civil::Time::new(h.parse().ok()?, m.parse().ok()?, 0, 0).ok()
 }
 
-/// Strict `YYYY-MM-DD`.
+/// Accepted years. Far from jiff's timestamp limits (year 9999), so every
+/// accepted date converts to an instant in every zone.
+pub const YEARS: std::ops::RangeInclusive<i16> = 1970..=2999;
+
+/// Strict `YYYY-MM-DD`, year within `YEARS`.
 pub fn parse_date(s: &str) -> Option<jiff::civil::Date> {
     let mut it = s.split('-');
     let (y, m, d) = (it.next()?, it.next()?, it.next()?);
@@ -31,7 +35,11 @@ pub fn parse_date(s: &str) -> Option<jiff::civil::Date> {
     {
         return None;
     }
-    jiff::civil::Date::new(y.parse().ok()?, m.parse().ok()?, d.parse().ok()?).ok()
+    let y: i16 = y.parse().ok()?;
+    if !YEARS.contains(&y) {
+        return None;
+    }
+    jiff::civil::Date::new(y, m.parse().ok()?, d.parse().ok()?).ok()
 }
 
 /// IANA lookup in the bundled tz database (never the system zoneinfo, the
@@ -91,28 +99,25 @@ pub struct Occ {
 
 /// Wall time on a date to an instant. A wall time in a DST gap resolves to the
 /// transition itself (the first valid instant after it); a repeated wall time
-/// resolves to the earlier instant.
+/// resolves to the earlier instant. `None` if the instant is outside jiff's
+/// timestamp range (only possible near year 9999).
 pub fn instant(
     tz: &jiff::tz::TimeZone,
     date: jiff::civil::Date,
     time: jiff::civil::Time,
-) -> jiff::Timestamp {
+) -> Option<jiff::Timestamp> {
     use jiff::tz::AmbiguousOffset;
     let dt = date.to_datetime(time);
     let amb = tz.to_ambiguous_timestamp(dt);
     match amb.offset() {
-        AmbiguousOffset::Unambiguous { .. } => amb.unambiguous().expect("unambiguous"),
+        AmbiguousOffset::Unambiguous { offset } => offset.to_timestamp(dt).ok(),
         // Both offsets are valid for a fold; `before` is the earlier instant.
-        AmbiguousOffset::Fold { before, .. } => before
-            .to_timestamp(dt)
-            .unwrap_or_else(|_| amb.compatible().expect("fold")),
+        AmbiguousOffset::Fold { before, .. } => before.to_timestamp(dt).ok(),
         AmbiguousOffset::Gap { after, .. } => {
             // The `after` offset is larger, so it yields an instant just before
             // the transition; the next transition is the one we want.
-            match after.to_timestamp(dt) {
-                Ok(ts) => tz.following(ts).next().map(|t| t.timestamp()).unwrap_or(ts),
-                Err(_) => amb.compatible().expect("gap"),
-            }
+            let ts = after.to_timestamp(dt).ok()?;
+            Some(tz.following(ts).next().map_or(ts, |t| t.timestamp()))
         }
     }
 }
@@ -132,7 +137,8 @@ fn weekday_of(d: jiff::civil::Date) -> crate::model::Weekday {
 }
 
 /// All occurrences of `s` on local dates in `[from, to]` (inclusive), ignoring
-/// `enabled`. An unparseable time or once-date yields none.
+/// `enabled`. An unparseable time or once-date yields none, and so does a date
+/// whose instant is out of range.
 pub fn expand(
     s: &crate::model::Schedule,
     tz: &jiff::tz::TimeZone,
@@ -155,10 +161,10 @@ pub fn expand(
             Repeat::Weekends => matches!(wd, W::Sat | W::Sun),
             Repeat::Weekly { days } => days.contains(&wd),
         };
-        if hit {
+        if let Some(at) = hit.then(|| instant(tz, d, time)).flatten() {
             out.push(Occ {
                 date: d,
-                at: instant(tz, d, time),
+                at,
                 skipped: skips.contains(&d),
             });
         }
@@ -265,6 +271,40 @@ mod tests {
         ] {
             assert!(parse_date(bad).is_none(), "{bad}");
         }
+    }
+
+    #[test]
+    fn parse_date_bounded_years() {
+        for bad in ["9999-12-31", "0000-01-01", "1969-12-31", "3000-01-01"] {
+            assert!(parse_date(bad).is_none(), "{bad}");
+        }
+        for ok in ["1970-01-01", "2999-12-31"] {
+            assert!(parse_date(ok).is_some(), "{ok}");
+        }
+    }
+
+    #[test]
+    fn instant_and_expand_never_panic_at_timestamp_max() {
+        use crate::model::{Repeat, Schedule};
+        let la = zone("America/Los_Angeles").unwrap();
+        let end = jiff::civil::date(9999, 12, 31);
+        let t = parse_time("23:59").unwrap();
+        assert!(instant(&la, end, t).is_none());
+        assert!(instant(&jiff::tz::TimeZone::UTC, end, t).is_none());
+        let s = Schedule {
+            id: "s".into(),
+            machine_id: "m".into(),
+            action: crate::model::SchedAction::Wake,
+            time: "23:59".into(),
+            repeat: Repeat::Daily,
+            enabled: true,
+            skip: Vec::new(),
+            created: 0,
+        };
+        // Occurrences that can't be represented as instants are dropped.
+        let got = expand(&s, &la, jiff::civil::date(9999, 12, 28), end);
+        assert!(got.iter().all(|o| o.date < jiff::civil::date(9999, 12, 30)));
+        assert!(!got.is_empty());
     }
 
     #[test]

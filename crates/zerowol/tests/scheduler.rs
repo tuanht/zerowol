@@ -225,6 +225,37 @@ async fn startup_marks_missed() {
 }
 
 #[tokio::test]
+async fn missed_once_rule_is_disabled() {
+    let (_b, s, _d) = spawn(false).await;
+    let seen = agent_machine(&s).await;
+    add_rule(
+        &s,
+        "r1",
+        "m1",
+        SchedAction::Poweroff,
+        Repeat::Once { date: DAY.into() },
+    );
+    add_rule(&s, "r2", "m1", SchedAction::Poweroff, Repeat::Daily);
+    let now = at("09:00:00");
+    tick(
+        &s,
+        startup_after(Some(at("06:00:00").as_second() as u64), now),
+        now,
+    )
+    .await;
+    assert!(seen.lock().unwrap().is_empty());
+    let st = s.store.snapshot();
+    assert!(!st.schedules[0].enabled, "missed one-off stays enabled");
+    assert!(st.schedules[1].enabled, "repeating rule stays enabled");
+    assert!(
+        st.schedule_log
+            .iter()
+            .all(|e| e.result == LogResult::Missed)
+    );
+    assert_eq!(st.schedule_log.len(), 2);
+}
+
+#[tokio::test]
 async fn wake_already_online_is_ok() {
     let (_b, s, _d) = spawn(false).await;
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

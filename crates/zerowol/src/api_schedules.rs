@@ -119,7 +119,12 @@ fn check_future(s: &Schedule, tz: &TimeZone) -> ApiResult<()> {
         let (Some(d), Some(t)) = (schedule::parse_date(date), schedule::parse_time(&s.time)) else {
             return Ok(());
         };
-        if schedule::instant(tz, d, t) <= jiff::Timestamp::now() {
+        // parse_date bounds the year, so `instant` is always Some here; an
+        // unrepresentable instant is rejected rather than accepted.
+        let Some(at) = schedule::instant(tz, d, t) else {
+            return Err(bad("invalid date"));
+        };
+        if at <= jiff::Timestamp::now() {
             return Err(bad("time already passed"));
         }
     }

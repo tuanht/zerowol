@@ -117,6 +117,12 @@ fn log_missed(state: &AppState, machines: &[Machine], missed: &[Due], at: u64) {
             if !logged(st, d) {
                 schedule::push_log(&mut st.schedule_log, entry(d, at, LogResult::Missed, None));
             }
+            // A missed one-off is spent, like a fired one (see fire_one).
+            if let Some(s) = st.schedules.iter_mut().find(|s| s.id == d.schedule_id)
+                && matches!(s.repeat, Repeat::Once { .. })
+            {
+                s.enabled = false;
+            }
         }
         Ok::<_, StoreError>(())
     });
