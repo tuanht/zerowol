@@ -208,3 +208,14 @@ html.zw-ios-pwa .offline{padding-top:calc(env(safe-area-inset-top) + var(--zw-to
 .zw-wide .zw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
 /* Material phone: keep the last card clear of the FAB */
 .zw-md:not(.zw-wide) .page-content{--f7-page-content-extra-padding-bottom:88px}
+
+/* Floating look on iOS phones: Framework7 has no inset sheet or popup, so both get a margin (clear of the safe areas)
+   and rounded corners on all four sides, below F7's own tablet breakpoint (popups turn into a centred card at 630x630). */
+@media not all and (min-width:630px) and (min-height:630px){
+  /* inset left/right/bottom: width:auto lets left+right size the sheet (F7 sets width:100%); radius var is F7's, on all corners */
+  .ios .zw-sched-sheet{left:10px;right:10px;bottom:calc(10px + var(--f7-safe-area-bottom));width:auto;border-radius:var(--f7-sheet-border-radius)}
+  /* inset popup: F7 fills the screen (top:0, 100%x100%), so size it by its four edges; the top clears the status bar */
+  .ios .zw-sched-form{left:10px;right:10px;top:calc(10px + var(--f7-safe-area-top));bottom:calc(10px + var(--f7-safe-area-bottom));width:auto;height:auto;border-radius:var(--f7-sheet-border-radius)}
+  /* the card is already below the status bar, so its page and navbar need no safe-area offset of their own (F7 does the same for its push popups) */
+  .ios .zw-sched-form,.ios .zw-sched-form .page{--f7-safe-area-top:0px}
+}

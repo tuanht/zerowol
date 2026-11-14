@@ -639,6 +639,49 @@ const cases = {
       await tab(p, "Machines");
     });
   },
+  "schedule sheet and form float on iOS phones (inset, rounded), Material sheet stays full width, Close X on the left": async (p, theme) => {
+    const before = await scheduleIds(p);
+    const gaps = (sel) => p.evaluate((sel) => {
+      const r = document.querySelector(sel).getBoundingClientRect();
+      return { left: r.left, right: innerWidth - r.right, bottom: innerHeight - r.bottom, top: r.top, w: r.width, iw: innerWidth };
+    }, sel);
+    try {
+      await createRule(p, { machine_id: "dev-ws", action: "wake", time: "05:00", repeat: { kind: "daily" }, enabled: true });
+      await p.reload();
+      await p.waitForSelector(CARDS);
+      // a machine with rules: its card button opens the sheet
+      await p.locator(CARDS).filter({ hasText: "Workstation" }).locator("[aria-label=Schedules]").click();
+      const S = ".zw-sched-sheet.modal-in";
+      await p.waitForSelector(S);
+      await p.waitForTimeout(700);
+      const g = await gaps(S);
+      if (theme === "ios") {
+        if (g.left < 6 || g.right < 6 || g.bottom < 6) throw new Error(`iOS sheet not inset: ${JSON.stringify(g)}`);
+        const rad = await p.evaluate((s) => getComputedStyle(document.querySelector(s)).borderTopLeftRadius + "/" + getComputedStyle(document.querySelector(s)).borderBottomRightRadius, S);
+        if (rad.startsWith("0px") || rad.endsWith("0px")) throw new Error(`iOS sheet corners not rounded: ${rad}`);
+      } else if (g.left !== 0 || g.right !== 0 || g.bottom !== 0) throw new Error(`Material sheet not full width: ${JSON.stringify(g)}`);
+      const x = await p.locator(`${S} .navbar .left [aria-label=Close]`).boundingBox();
+      if (!x || x.x > g.iw / 4) throw new Error("no Close button on the left of the sheet's navbar");
+      if (await p.locator(`${S} .navbar :text('Done')`).count()) throw new Error("the sheet still has Done");
+      await p.click(`${S} .navbar .left [aria-label=Close]`);
+      await p.waitForSelector(S, { state: "detached", timeout: SETTLE }).catch(() => {});
+      await p.waitForFunction(() => !document.querySelector(".zw-sched-sheet.modal-in"), null, { timeout: SETTLE });
+      // the form
+      await p.locator(CARDS).filter({ hasText: "Laptop" }).locator("[aria-label=Schedules]").click();
+      const F = ".zw-sched-form.modal-in";
+      await p.waitForSelector(`${F} #s-time`);
+      await p.waitForTimeout(700);
+      const f = await gaps(F);
+      const top = await p.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--f7-safe-area-top")) || 0);
+      if (theme === "ios") {
+        if (f.left < 6 || f.right < 6 || f.bottom < 6 || f.top < 6 + top) throw new Error(`iOS form not inset: ${JSON.stringify(f)}, safe top ${top}`);
+      } else if (f.left !== 0 || f.right !== 0 || f.bottom !== 0 || f.top !== 0) throw new Error(`Material form not full screen: ${JSON.stringify(f)}`);
+      await p.click(`${F} .navbar .left a`);
+      await p.waitForFunction(() => !document.querySelector(".zw-sched-form.modal-in"), null, { timeout: SETTLE });
+    } finally {
+      await removeSchedulesExcept(p, before);
+    }
+  },
   "no old wording": async (p) => {
     const check = async (where) => {
       const t = await p.evaluate(() => document.body.innerText);
