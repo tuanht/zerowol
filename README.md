@@ -5,6 +5,7 @@ A tiny Wake-on-LAN and remote shutdown server for your NAS, with a mobile-first 
 - Wake machines with a magic packet.
 - Power off or reboot machines through a small signed agent (HMAC-SHA256, replay-protected).
 - Live status: online, agent paired, hostname, uptime.
+- Schedules: wake, reboot or power off on a timetable (daily, weekdays, weekends, weekly, once).
 - Installable on a phone home screen (iOS and Android).
 
 **LAN/Tailscale only — never forward port 8090.** zerowol has no login screen by default; anyone who can reach the port can power machines on and off. Reach it from outside through Tailscale or a VPN, and set `ZEROWOL_REQUIRE_TOKEN=true` if you want a stricter API.
@@ -42,6 +43,7 @@ To build from source instead, the repository's own [`docker-compose.yml`](docker
 | `ZEROWOL_BIND` | `0.0.0.0` | listen address |
 | `ZEROWOL_DATA` | `/data` | state directory |
 | `ZEROWOL_REQUIRE_TOKEN` | `false` | require a bearer token for non-UI API calls |
+| `TZ` | unset | default schedule timezone, an IANA name such as `Europe/Berlin` (`UTC` / `Etc/UTC` count as unset); a timezone saved in the UI or via `PATCH /api/v1/settings` takes precedence |
 
 ## Enabling Wake-on-LAN on the PC
 
@@ -179,7 +181,7 @@ The web UI is a Vue 3 + Framework7-Vue app in `crates/zerowol/web/src`, built wi
 
 ### Development server with fake machines
 
-`make dev` runs a local server (data in `target/dev-data`, port 8090) built with the `dev-fakes` feature and `ZEROWOL_DEV_FAKES=1`. It seeds five fake machines (ids starting with `dev-`, IPs in the unroutable 192.0.2.0/24) whose status and power actions are simulated: a paired Workstation that powers off/reboots, a Media PC that wakes, a Laptop with an unreachable agent, a Gaming PC whose agent rejects requests (clock skew), and an Old Server that never wakes (to see the timeout). The feature is off by default, so release, `make dist` and Docker builds don't contain this code and ignore the variable.
+`make dev` runs a local server (data in `target/dev-data`, port 8090) built with the `dev-fakes` feature and `ZEROWOL_DEV_FAKES=1`. It seeds five fake machines (ids starting with `dev-`, IPs in the unroutable 192.0.2.0/24) whose status and power actions are simulated: a paired Workstation that powers off/reboots, a Media PC that wakes, a Laptop with an unreachable agent, a Gaming PC whose agent rejects requests (clock skew), and an Old Server that never wakes (to see the timeout). If no schedule timezone is saved yet, it also saves `Europe/Berlin`, so the Schedules tab works straight away. The feature is off by default, so release, `make dist` and Docker builds don't contain this code and ignore the variable.
 
 ## Screenshots
 

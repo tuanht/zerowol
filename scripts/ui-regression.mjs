@@ -1,7 +1,8 @@
 // UI regression tests against a server started with the dev-fakes feature
 // (five seeded fake machines). Usage: node scripts/ui-regression.mjs <base-url>
-// Read-only except for the one self-cleaning "hostile machine name" case, which
-// creates a machine through the API and deletes it again. Use
+// Cases that change data clean up after themselves: "hostile machine name"
+// creates a machine and deletes it again, the schedule cases remove the rules
+// they create, and "no tz prompt" restores the saved timezone. Use
 // scripts/ui-regression.sh to build, start a throwaway server and run this.
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
@@ -353,6 +354,98 @@ const cases = {
     }
     await tab(p, "Machines");
   },
+  "add schedule from card": async (p) => {
+    const before = await scheduleIds(p);
+    try {
+      const card = p.locator(CARDS).filter({ hasText: "Workstation" });
+      await card.locator("[aria-label=Schedules]").click();
+      const F = ".zw-sched-form.modal-in";
+      await p.waitForSelector(`${F} #s-time`);
+      await p.waitForTimeout(700);
+      if ((await p.inputValue(`${F} #s-machine`)) !== "dev-ws") throw new Error("form not opened for Workstation");
+      await p.click(`${F} .zw-seg-row button:has-text('Power off')`);
+      await p.fill(`${F} #s-time`, "02:00");
+      if ((await p.inputValue(`${F} #s-repeat`)) !== "daily") throw new Error("repeat does not default to Daily");
+      await p.click(`${F} .navbar .right a`); // iOS "Add", Material "Save"
+      await p.waitForSelector(F, { state: "detached", timeout: 3000 });
+      await card.locator(".zw-sched-btn .badge:text-is('1')").waitFor({ timeout: SETTLE });
+      await openTomorrow(p);
+      const row = p.locator(`${SCHED} .list li`).filter({ hasText: "02:00 · Workstation" });
+      await row.waitFor({ timeout: SETTLE });
+      const pill = (await row.locator(".zw-pill").innerText()).trim();
+      if (pill !== "Power off") throw new Error(`tomorrow's Workstation row shows "${pill}", want Power off`);
+      await tab(p, "Machines");
+    } finally {
+      await removeSchedulesExcept(p, before);
+    }
+  },
+  "skip this time": async (p) => {
+    const id = await createRule(p, { machine_id: "dev-ws", action: "poweroff", time: "02:00", repeat: { kind: "daily" }, enabled: true });
+    try {
+      await openTomorrow(p);
+      const row = p.locator(`${SCHED} .list li`).filter({ hasText: "02:00 · Workstation" });
+      await row.waitFor({ timeout: SETTLE });
+      if (await row.locator("s").count()) throw new Error("occurrence struck through before Skip");
+      const sheetTap = async (label) => {
+        await row.locator("a.item-link").click();
+        const btn = p.locator(`.actions-modal.modal-in .actions-button:has-text("${label}")`);
+        await btn.waitFor();
+        await p.waitForTimeout(400);
+        await btn.click();
+        await p.waitForSelector(".actions-modal.modal-in", { state: "detached", timeout: SETTLE });
+      };
+      await sheetTap("Skip this time");
+      await row.locator("s:has-text('Workstation')").waitFor({ timeout: SETTLE });
+      if (!(await row.innerText()).includes("skipped")) throw new Error("skipped occurrence not labelled skipped");
+      await sheetTap("Don't skip");
+      await row.locator("s").waitFor({ state: "detached", timeout: SETTLE });
+      await tab(p, "Machines");
+    } finally {
+      await removeSchedules(p, [id]);
+    }
+  },
+  "schedules tab switch keeps state": async (p) => {
+    await tab(p, "Schedules");
+    await p.waitForSelector(`${SCHED} .segmented`);
+    await p.click(`${SCHED} .segmented button:has-text('Week')`);
+    await p.waitForSelector(`${SCHED} .segmented button.button-active:has-text('Week')`);
+    await tab(p, "Machines");
+    await p.waitForSelector(`${CUR}[data-name=machines]`);
+    await tab(p, "Schedules");
+    await p.waitForSelector(`${SCHED} .segmented button.button-active:has-text('Week')`, { timeout: SETTLE });
+    if (await p.locator(`${SCHED} .zw-day.sel`).count()) throw new Error("a day is selected in Week view");
+    await tab(p, "Machines");
+  },
+  "no tz prompt": async (p) => {
+    const saved = await p.evaluate(async () => (await fetch("/api/v1/settings")).json());
+    try {
+      const cleared = await p.evaluate(async () => {
+        const r = await fetch("/api/v1/settings", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ timezone: null }) });
+        return r.json();
+      });
+      // The regression server runs without TZ: nothing to fall back to.
+      if (cleared.timezone !== null || cleared.source !== null) throw new Error(`settings after clearing ${JSON.stringify(cleared)}`);
+      await p.locator(CARDS).filter({ hasText: "Workstation" }).locator("[aria-label=Schedules]").click();
+      const F = ".zw-sched-form.modal-in";
+      const use = p.locator(`${F} button:has-text('Use ')`);
+      await use.waitFor();
+      await p.waitForTimeout(700);
+      if (await p.locator(`${F} #s-time`).count()) throw new Error("form fields shown before a timezone is set");
+      const zone = (await use.innerText()).trim().replace(/^Use /, "");
+      await use.click();
+      await p.waitForSelector(`${F} #s-time`);
+      await p.waitForSelector(`${F} .zw-seg-row .segmented`);
+      const now = await p.evaluate(async () => (await fetch("/api/v1/settings")).json());
+      if (now.timezone !== zone || now.source !== "settings") throw new Error(`picked ${zone}, settings ${JSON.stringify(now)}`);
+      await p.click(`${F} .navbar .left a`);
+      await p.waitForSelector(F, { state: "detached", timeout: SETTLE });
+    } finally {
+      const status = await p.evaluate(async (tz) => (await fetch("/api/v1/settings", {
+        method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ timezone: tz }),
+      })).status, saved.source === "settings" ? saved.timezone : null);
+      if (status !== 200) throw new Error(`cleanup: restoring the timezone returned ${status}`);
+    }
+  },
   "no old wording": async (p) => {
     const check = async (where) => {
       const t = await p.evaluate(() => document.body.innerText);
@@ -371,6 +464,44 @@ const cases = {
   },
 };
 
+const SCHED = "#view-schedules .page-current[data-name=schedules]";
+async function scheduleIds(p) {
+  return p.evaluate(async () => (await (await fetch("/api/v1/schedules")).json()).map((s) => s.id));
+}
+async function createRule(p, body) {
+  return p.evaluate(async (body) => {
+    const r = await fetch("/api/v1/schedules", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error("schedule create failed: " + r.status + " " + (await r.text()));
+    return (await r.json()).id;
+  }, body);
+}
+async function removeSchedules(p, ids) {
+  const bad = await p.evaluate(async (ids) => {
+    const out = [];
+    for (const id of ids) {
+      const r = await fetch("/api/v1/schedules/" + id, { method: "DELETE" });
+      if (!r.ok && r.status !== 404) out.push(id + ": " + r.status);
+    }
+    return out;
+  }, ids);
+  if (bad.length) throw new Error("cleanup: schedule DELETE failed " + bad.join(", "));
+}
+async function removeSchedulesExcept(p, keep) {
+  await removeSchedules(p, (await scheduleIds(p)).filter((id) => !keep.includes(id)));
+}
+// Schedules tab, phone Day view, on tomorrow (the next strip cell, or the first one of next week).
+async function openTomorrow(p) {
+  await tab(p, "Schedules");
+  await p.waitForSelector(`${SCHED} .zw-strip .zw-day.today`);
+  const i = await p.evaluate((sel) => [...document.querySelectorAll(sel + " .zw-strip .zw-day")].findIndex((d) => d.classList.contains("today")), SCHED);
+  if (i === 6) {
+    await p.click(`${SCHED} .zw-strip [aria-label='Next week']`);
+    await p.waitForTimeout(400);
+  }
+  await p.click(`${SCHED} .zw-strip .zw-day >> nth=${(i + 1) % 7}`);
+  await p.waitForSelector(`${SCHED} .segmented button.button-active:has-text('Day')`);
+  await p.waitForSelector(`${SCHED} .zw-day.sel:not(.today)`);
+}
 function addDay(d, n) {
   const t = new Date(d + "T00:00:00Z");
   t.setUTCDate(t.getUTCDate() + n);

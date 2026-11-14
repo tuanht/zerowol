@@ -17,6 +17,8 @@ use std::time::{Duration, Instant};
 use zerowol_proto::Action;
 
 pub const PREFIX: &str = "dev-";
+/// Schedule timezone the dev seed saves when none is set.
+const SEED_TZ: &str = "Europe/Berlin";
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Agent {
@@ -157,9 +159,14 @@ fn with_sim<R>(id: &'static str, f: impl FnOnce(&mut Sim) -> R) -> R {
     f(sim)
 }
 
-/// Seed any missing fake machines into the store.
+/// Seed any missing fake machines into the store. With no schedule timezone
+/// saved yet, also set one (Europe/Berlin), so the Schedules tab and the UI
+/// regression cases start from a usable state rather than the timezone prompt.
 pub fn seed(store: &Store) -> Result<usize, StoreError> {
     store.update(|st| {
+        if st.settings.timezone.is_none() {
+            st.settings.timezone = Some(SEED_TZ.into());
+        }
         let mut added = 0;
         for s in SPECS {
             if st.machines.iter().any(|m| m.id == s.id) {
@@ -298,6 +305,25 @@ mod tests {
         ));
         let media = status(&machine("dev-media", false)).unwrap();
         assert_eq!((media.online, media.agent), (false, "none"));
+    }
+
+    #[test]
+    fn seed_sets_timezone_only_when_unset() {
+        let d = tempfile::TempDir::new().unwrap();
+        let store = Store::open(d.path()).unwrap();
+        assert_eq!(seed(&store).unwrap(), SPECS.len());
+        assert_eq!(store.snapshot().settings.timezone.as_deref(), Some(SEED_TZ));
+        store
+            .update(|st| {
+                st.settings.timezone = Some("Asia/Tokyo".into());
+                Ok::<_, StoreError>(())
+            })
+            .unwrap();
+        assert_eq!(seed(&store).unwrap(), 0);
+        assert_eq!(
+            store.snapshot().settings.timezone.as_deref(),
+            Some("Asia/Tokyo")
+        );
     }
 
     #[test]
