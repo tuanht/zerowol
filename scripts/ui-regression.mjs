@@ -211,12 +211,13 @@ const cases = {
       const name = document.querySelector(cur + " .card.machine .name");
       const btns = [...document.querySelectorAll(cur + " .card-footer.actions .button")].map((b) => {
         const s = b.querySelector("span");
-        return b.scrollWidth > b.clientWidth || (!!s && s.scrollWidth > s.clientWidth + 1);
+        const over = b.scrollWidth > b.clientWidth || (!!s && s.scrollWidth > s.clientWidth + 1);
+        return { over, text: b.textContent.trim(), w: b.clientWidth, sw: b.scrollWidth, font: getComputedStyle(b).fontFamily };
       });
-      return { gap: cards[1].left - cards[0].right, cw: cards[0].width, nameW: name.getBoundingClientRect().width, over: btns.some(Boolean) };
+      return { gap: cards[1].left - cards[0].right, cw: cards[0].width, nameW: name.getBoundingClientRect().width, over: btns.filter((b) => b.over) };
     }, CUR);
     await p.evaluate(() => { const s = document.querySelector(".views").style; s.removeProperty("--f7-safe-area-left"); s.removeProperty("--f7-safe-area-right"); });
-    if (n.over) throw new Error(`notch landscape: a button label overflows`);
+    if (n.over.length) throw new Error(`notch landscape: a button label overflows in a ${n.cw}px card: ${JSON.stringify(n.over)}`);
     if (n.gap > 40) throw new Error(`notch landscape: ${n.gap}px between cards (safe areas applied per card)`);
     if (n.nameW < 80) throw new Error(`notch landscape: machine name squeezed to ${n.nameW}px`);
     await p.setViewportSize(vp);

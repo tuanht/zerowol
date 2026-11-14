@@ -17,7 +17,9 @@
    Material: Framework7's card footer, buttons at the end (M3 card actions). */
 .zw-ios .card-footer.actions{gap:8px}
 .zw-ios .card-footer.actions .button{flex:1}
-.zw-md .card-footer.actions{justify-content:flex-end;gap:8px}
+/* Material: wrap instead of clipping a label when the actions don't fit (2-column landscape with a cutout, larger
+   fonts); wrapping happens before F7's buttons would shrink, the moved button stays at the end */
+.zw-md .card-footer.actions{justify-content:flex-end;gap:8px;flex-wrap:wrap}
 .card-footer.actions .button{gap:6px;width:auto}
 .card-footer.actions .ico{width:18px;height:18px}
 /* iOS: the schedules button is an icon-only round button, not an equal share of the footer */
