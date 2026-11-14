@@ -234,11 +234,17 @@ const cases = {
       const strip = document.querySelector(sel + " .zw-strip");
       const days = [...strip.querySelectorAll(".zw-day")].map((d) => d.getBoundingClientRect().width);
       const r = strip.getBoundingClientRect();
-      return { days, left: r.left, right: r.right, iw: innerWidth, over: strip.scrollWidth - strip.clientWidth };
+      const blk = strip.parentElement, cs = getComputedStyle(blk);
+      const inner = blk.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      return { days, left: r.left, right: r.right, iw: innerWidth, over: strip.scrollWidth - strip.clientWidth,
+        block: blk.classList.contains("block") ? cs.display : "missing", width: r.width, inner };
     }, S);
     if (m.days.length !== 7) throw new Error(`${m.days.length} day cells`);
     if (Math.max(...m.days) - Math.min(...m.days) > 1) throw new Error(`unequal day cells ${JSON.stringify(m.days)}`);
     if (m.left < 0 || m.right > m.iw || m.over > 0) throw new Error(`strip outside the viewport ${JSON.stringify(m)}`);
+    // Our grid sits inside a plain F7 .block (whose own display is untouched) and fills its content box.
+    if (m.block !== "block") throw new Error(`strip's F7 .block has display ${m.block}`);
+    if (Math.abs(m.width - m.inner) > 1) throw new Error(`strip ${m.width}px in a ${m.inner}px block`);
     await p.click(`${S} .segmented button:has-text('Week')`);
     await p.waitForSelector(`${S} .segmented button.button-active:has-text('Week')`);
     await p.click(`${S} .segmented button:has-text('Day')`);

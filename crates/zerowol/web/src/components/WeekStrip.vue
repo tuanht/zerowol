@@ -34,22 +34,24 @@ function up(e) {
 
 <template>
   <div class="block-title">{{ title }}</div>
-  <div class="block zw-strip" @pointerdown="down" @pointerup="up" @pointercancel="x0 = null">
-    <a class="link icon-only" href="#" aria-label="Previous week" @click.prevent="emit('week', -1)"><Icon name="prev" /></a>
-    <button
-      v-for="(d, i) in days"
-      :key="d"
-      class="zw-day"
-      :class="{ sel: d === selected, today: d === today }"
-      type="button"
-      :aria-label="fmtLong(d)"
-      :aria-pressed="d === selected"
-      @click="emit('select', d)"
-    >
-      <span class="zw-wd">{{ LETTERS[i] }}</span>
-      <span class="zw-num">{{ +d.slice(8) }}</span>
-      <span class="zw-dots"><span v-for="a in dots[d] || []" :key="a" class="dot" :class="a" /></span>
-    </button>
-    <a class="link icon-only" href="#" aria-label="Next week" @click.prevent="emit('week', 1)"><Icon name="next" /></a>
+  <div class="block">
+    <div class="zw-strip" @pointerdown="down" @pointerup="up" @pointercancel="x0 = null">
+      <a class="link icon-only" href="#" aria-label="Previous week" @click.prevent="emit('week', -1)"><Icon name="prev" /></a>
+      <button
+        v-for="(d, i) in days"
+        :key="d"
+        class="zw-day"
+        :class="{ sel: d === selected, today: d === today }"
+        type="button"
+        :aria-label="fmtLong(d)"
+        :aria-pressed="d === selected"
+        @click="emit('select', d)"
+      >
+        <span class="zw-wd">{{ LETTERS[i] }}</span>
+        <span class="zw-num">{{ +d.slice(8) }}</span>
+        <span class="zw-dots"><span v-for="a in dots[d] || []" :key="a" class="dot" :class="a" /></span>
+      </button>
+      <a class="link icon-only" href="#" aria-label="Next week" @click.prevent="emit('week', 1)"><Icon name="next" /></a>
+    </div>
   </div>
 </template>

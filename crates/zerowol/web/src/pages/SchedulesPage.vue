@@ -9,6 +9,7 @@ import WeekAgenda from "../components/WeekAgenda.vue";
 import { IOS } from "../lib/layout.js";
 import { offlineMsg } from "../lib/api.js";
 import { toast } from "../lib/ui.js";
+import { state as machines } from "../lib/machines.js";
 import { addDays, fmtLong, weekDays, weekStart } from "../lib/dates.js";
 import { fetchOccurrences, reloadSchedules, schedState, setTimezone, todayIn } from "../lib/schedules.js";
 import { openOccurrenceActions } from "../lib/occurrences.js";
@@ -43,20 +44,34 @@ const dayOccs = computed(() => occs.value.filter((o) => o.date === selected.valu
 const busy = ref(false);
 
 let seq = 0;
+let heldWeek = ""; // the week `occs` belongs to
+const failed = ref(false); // this week's occurrences could not be loaded
 async function load() {
   const n = ++seq;
+  let from = weekStart(selected.value);
   try {
     await reloadSchedules();
     today.value = todayIn(tz.value);
     if (!loaded.value) selected.value = today.value;
-    const from = weekStart(selected.value);
+    from = weekStart(selected.value);
     const list = tz.value ? await fetchOccurrences(from, addDays(from, 6)) : [];
     if (n !== seq) return; // a newer load (other week) is on its way
     occs.value = list;
+    heldWeek = from;
+    failed.value = false;
     now.value = Date.now() / 1000;
     loaded.value = true;
-  } catch {
-    // Offline: the app-wide banner says so; keep what is shown.
+  } catch (e) {
+    if (n !== seq) return;
+    // Never show another week's occurrences under this week's dates.
+    if (heldWeek !== from) {
+      occs.value = [];
+      heldWeek = "";
+      failed.value = true;
+      loaded.value = true; // show the strip and the failure line, not a blank page
+    }
+    // Offline is already announced by the app-wide banner.
+    if (!machines.offline) toast(offlineMsg(e));
   }
 }
 watch(() => weekStart(selected.value), () => loaded.value && load());
@@ -141,7 +156,8 @@ onBeforeUnmount(() => {
 
       <WeekStrip :days="days" :selected="view === 'day' ? selected : ''" :today="today" :occurrences="occs" @select="pickDay" @week="shiftWeek" />
 
-      <div v-if="!occs.length" class="block text-align-center">
+      <div v-if="failed" class="block text-align-center"><p>Couldn't load this week's schedules.</p></div>
+      <div v-else-if="!occs.length" class="block text-align-center">
         <p>No schedules this week</p>
         <button class="button button-fill button-round" type="button" @click="add">Add schedule</button>
       </div>
