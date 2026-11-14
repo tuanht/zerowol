@@ -6,6 +6,7 @@ import ZonePicker from "../components/ZonePicker.vue";
 import WeekStrip from "../components/WeekStrip.vue";
 import DayAgenda from "../components/DayAgenda.vue";
 import WeekAgenda from "../components/WeekAgenda.vue";
+import ViewSwitch from "../components/ViewSwitch.vue";
 import WeekGrid from "../components/WeekGrid.vue";
 import MonthGrid from "../components/MonthGrid.vue";
 import { IOS, wide } from "../lib/layout.js";
@@ -14,7 +15,7 @@ import { toast } from "../lib/ui.js";
 import { state as machines } from "../lib/machines.js";
 import { addDays, addMonths, fmtLong, fmtRange, monthGrid, weekDays } from "../lib/dates.js";
 import { fetchOccurrences, reloadSchedules, schedState, setTimezone, todayIn } from "../lib/schedules.js";
-import { openDayPopover, openOccurrenceActions } from "../lib/occurrences.js";
+import { openOccurrenceActions } from "../lib/occurrences.js";
 
 const ios = IOS;
 const add = inject("addFor")["view-schedules"];
@@ -68,7 +69,9 @@ const dayOccs = computed(() => occs.value.filter((o) => o.date === selected.valu
 const busy = ref(false);
 
 let seq = 0;
-let held = ""; // the range `occs` belongs to
+const held = ref(""); // the range `occs` belongs to
+// Only show occurrences under the range they were loaded for (e.g. not a week's worth in a fresh Month view).
+const ready = computed(() => held.value === range.value.join());
 const failed = ref(false); // this range's occurrences could not be loaded
 async function load() {
   const n = ++seq;
@@ -82,16 +85,16 @@ async function load() {
     const list = tz.value ? await fetchOccurrences(from, to) : [];
     if (n !== seq) return; // a newer load (other range) is on its way
     occs.value = list;
-    held = key;
+    held.value = key;
     failed.value = false;
     now.value = Date.now() / 1000;
     loaded.value = true;
   } catch (e) {
     if (n !== seq) return;
     // Never show another range's occurrences under this range's dates.
-    if (held !== key) {
+    if (held.value !== key) {
       occs.value = [];
-      held = "";
+      held.value = "";
       failed.value = true;
       loaded.value = true; // show the strip and the failure line, not a blank page
     }
@@ -110,7 +113,32 @@ function pickDay(d) {
   view.value = "day";
 }
 const pick = (o, el) => openOccurrenceActions(o, el);
-const pickDate = (d, el) => openDayPopover(fmtLong(d), occs.value.filter((o) => o.date === d), el, now.value);
+
+// Month view: tapping a day opens its agenda (our DayAgenda) in an F7 popover anchored to the cell.
+// The popover element lives in this page's template; F7 moves it out while open and puts it back on close.
+const popEl = ref(null);
+const popDate = ref("");
+const popOccs = computed(() => occs.value.filter((o) => o.date === popDate.value));
+let pop = null;
+let popCell = null;
+let popPicked = null;
+function pickDate(d, el) {
+  popDate.value = d;
+  popCell = el;
+  popPicked = null;
+  pop ||= f7.popover.create({
+    el: popEl.value,
+    on: {
+      // Tapping an item closes the popover first, then opens that occurrence's actions at the same cell.
+      closed: () => popPicked && openOccurrenceActions(popPicked, popCell),
+    },
+  });
+  pop.open(el);
+}
+function popPick(o) {
+  popPicked = o;
+  pop.close();
+}
 
 async function useZone(name) {
   if (!name || busy.value) return;
@@ -144,6 +172,7 @@ onMounted(() => {
   sync();
 });
 onBeforeUnmount(() => {
+  if (pop) pop.destroy();
   f7.off("tabShow tabHide", sync);
   document.removeEventListener("visibilitychange", sync);
   clearInterval(timer);
@@ -171,24 +200,10 @@ onBeforeUnmount(() => {
             <a class="link icon-only" href="#" :aria-label="'Next ' + span" @click.prevent="shift(1)"><Icon name="next" /></a>
             <span class="zw-bar-title">{{ title }}</span>
             <div class="zw-bar-seg">
-              <div class="segmented" :class="{ 'segmented-strong': ios }" role="radiogroup" aria-label="View">
-                <button
-                  v-for="(label, v) in VIEWS"
-                  :key="v"
-                  class="button"
-                  :class="{ 'button-active': view === v }"
-                  type="button"
-                  role="radio"
-                  :aria-checked="view === v"
-                  @click="view = v"
-                >
-                  {{ label }}
-                </button>
-                <span v-if="ios" class="segmented-highlight" />
-              </div>
+              <ViewSwitch v-model="view" :views="VIEWS" />
             </div>
           </div>
-          <template v-if="occs.length && !failed">
+          <template v-if="ready && occs.length && !failed">
             <MonthGrid v-if="isMonth" :month="selected" :occurrences="occs" :today="today" :now="now" @pick="pickDate" />
             <WeekGrid v-else :days="days" :occurrences="occs" :today="today" :now="now" @pick="pick" />
           </template>
@@ -196,29 +211,16 @@ onBeforeUnmount(() => {
       </div>
       <template v-else>
         <div class="block">
-          <div class="segmented" :class="{ 'segmented-strong': ios }" role="radiogroup" aria-label="View">
-            <button
-              v-for="(label, v) in VIEWS"
-              :key="v"
-              class="button"
-              :class="{ 'button-active': view === v }"
-              type="button"
-              role="radio"
-              :aria-checked="view === v"
-              @click="view = v"
-            >
-              {{ label }}
-            </button>
-            <span v-if="ios" class="segmented-highlight" />
-          </div>
+          <ViewSwitch v-model="view" :views="VIEWS" />
         </div>
 
-        <WeekStrip :days="days" :selected="view === 'day' ? selected : ''" :today="today" :occurrences="occs" @select="pickDay" @week="shift" />
+        <WeekStrip :days="days" :selected="view === 'day' ? selected : ''" :today="today" :occurrences="ready ? occs : []" @select="pickDay" @week="shift" />
       </template>
 
       <div v-if="failed" class="block text-align-center">
         <p>Couldn't load this {{ span }}'s schedules.</p>
       </div>
+      <template v-else-if="!ready" />
       <div v-else-if="!occs.length" class="block text-align-center">
         <p>No schedules this {{ span }}</p>
         <button class="button button-fill button-round" type="button" @click="add">Add schedule</button>
@@ -229,5 +231,13 @@ onBeforeUnmount(() => {
       </template>
       <WeekAgenda v-else-if="!wide" :days="days" :today="today" :occurrences="occs" :now="now" @pick="pick" />
     </template>
+
+    <!-- Month view's day popover (F7 Popover; opened and anchored from pickDate). -->
+    <div ref="popEl" class="popover zw-day-pop">
+      <div class="popover-inner">
+        <div class="block-title">{{ popDate && fmtLong(popDate) }}</div>
+        <DayAgenda :occurrences="popOccs" :now="now" @pick="popPick" />
+      </div>
+    </div>
   </f7-page>
 </template>

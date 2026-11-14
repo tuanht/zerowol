@@ -256,8 +256,10 @@ const cases = {
     // Fixed occurrences: 8 distinct hours every day (3 of them once rules on the 10th), so the layout is measured at its limit.
     const HOURS = ["00", "02", "05", "07", "08", "12", "18", "23"];
     const ACTS = ["wake", "reboot", "poweroff"];
-    await p.route("**/api/v1/schedules/occurrences?**", (route) => {
+    await p.route("**/api/v1/schedules/occurrences?**", async (route) => {
       const u = new URL(route.request().url());
+      // A month's range answers late, so the switch from Week shows the gap before the matching data arrives.
+      if (u.searchParams.get("to") > addDay(u.searchParams.get("from"), 7)) await new Promise((r) => setTimeout(r, 800));
       const out = [];
       for (let d = u.searchParams.get("from"); d <= u.searchParams.get("to"); ) {
         HOURS.forEach((h, i) => {
@@ -265,9 +267,7 @@ const cases = {
           out.push({ schedule_id: (once ? "o" : "r") + i, machine_id: "dev-ws", machine_name: "Workstation", action: ACTS[i % 3],
             repeat_kind: once ? "once" : "daily", date: d, time: h + ":30", at: 0, skipped: false, enabled: true, outcome: null });
         });
-        const t = new Date(d + "T00:00:00Z");
-        t.setUTCDate(t.getUTCDate() + 1);
-        d = t.toISOString().slice(0, 10);
+        d = addDay(d, 1);
       }
       return route.fulfill({ json: out });
     });
@@ -307,6 +307,9 @@ const cases = {
       await p.touchscreen.tap(1270, 790); // outside it; a tap, as F7 pairs touchstart with the click on touch devices
       await p.waitForSelector(".popover.modal-in", { state: "detached" });
       await p.click(`${S} .segmented button:has-text('Month')`);
+      await p.waitForTimeout(200);
+      // Until the month's data arrives, neither the week's occurrences in a month grid nor the empty state.
+      if (await p.locator(`${S} .zw-mgrid, ${S} :text('No schedules')`).count()) throw new Error("month view drew before its data arrived");
       await p.waitForSelector(`${S} .zw-mgrid`);
       await p.waitForTimeout(400);
       const m = await p.evaluate((sel) => {
@@ -321,6 +324,12 @@ const cases = {
       if (spread(m.w) > 1 || spread(m.h) > 1) throw new Error(`unequal month cells ${JSON.stringify({ w: m.w.slice(0, 7), h: m.h.slice(0, 7) })}`);
       if (m.left < 0 || m.right > m.iw || m.bottom > m.ih || m.scroll > 0) throw new Error(`month grid outside 1280x800 ${JSON.stringify(m)}`);
       if (m.more !== "+1") throw new Error(`3 once chips show "${m.more}", want "+1"`);
+      // "+N" at a cell's right edge stays clear of the next day's number, with a column hairline between them.
+      const gap = await p.evaluate((sel) => {
+        const more = document.querySelector(sel + " .zw-more"), next = more.closest(".zw-mcell").nextElementSibling;
+        return { px: next.querySelector(".zw-mnum").getBoundingClientRect().left - more.getBoundingClientRect().right, line: getComputedStyle(next).borderLeftWidth };
+      }, S);
+      if (gap.px < 8 || gap.line !== "1px") throw new Error(`"+N" ${gap.px}px from the next day's number, divider ${gap.line}`);
       if (await p.evaluate(() => localStorage.getItem("zw-sched-view-wide")) !== "month") throw new Error("wide view not stored");
       // A day: its agenda in a popover; an item closes it and opens that occurrence's actions.
       await p.click(`${S} .zw-mcell:not(.out) >> nth=14`);
@@ -329,7 +338,7 @@ const cases = {
       if (rows !== 8) throw new Error(`day popover has ${rows} rows, want 8`);
       await p.click(".zw-day-pop .item-link >> nth=1");
       await p.waitForSelector(".popover.modal-in:has-text('Skip this time')");
-      if (await p.locator(".zw-day-pop").count()) throw new Error("day popover still open under the actions");
+      if (await p.locator(".zw-day-pop.modal-in").count()) throw new Error("day popover still open under the actions");
       await p.waitForTimeout(500); // F7 binds its outside-tap close once the popover has opened
       await p.touchscreen.tap(1270, 790); // outside it; a tap, as F7 pairs touchstart with the click on touch devices
       await p.waitForSelector(".popover.modal-in", { state: "detached" });
@@ -362,6 +371,11 @@ const cases = {
   },
 };
 
+function addDay(d, n) {
+  const t = new Date(d + "T00:00:00Z");
+  t.setUTCDate(t.getUTCDate() + n);
+  return t.toISOString().slice(0, 10);
+}
 async function openMachine(p) {
   await p.click(`${CARDS} a.item-link >> nth=0`);
   await p.waitForSelector(`${CUR}[data-name=machine]`);

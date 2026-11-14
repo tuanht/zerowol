@@ -107,6 +107,10 @@
 .zw-mhead{padding-bottom:4px;font-size:12px;text-align:center;opacity:.6}
 /* a day cell is our own <button>: drop the browser's button box, stack number / dots / chips */
 .zw-mcell{appearance:none;background:none;border:0;border-top:1px solid var(--f7-list-item-border-color);margin:0;padding:4px 6px;font:inherit;color:inherit;height:72px;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:2px;overflow:hidden;text-align:left;cursor:pointer}
+/* a hairline between the day columns (as in the week grid), so "+N" at a cell's right edge stays clear of the next
+   day's number; none before the first column (the header row is the grid's first 7 children, so cells start at 8) */
+.zw-mcell{border-left:1px solid var(--f7-list-item-border-color)}
+.zw-mcell:nth-child(7n+1){border-left:0}
 /* the cell's first line: day number, the repeating rules' dots, and "+N" at the end */
 .zw-mtop{display:flex;align-items:center;gap:6px}
 /* once-rule chips keep their height (in the fixed-height column they would otherwise be squashed) */
