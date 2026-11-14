@@ -5,6 +5,8 @@ import { readFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 
+// 184,815 (pre-Vue size + 60 KB) raised to 196,143 for the searchable timezone
+// list in Phase 2 (Framework7 Searchbar + zone data); accepted by the owner 2026-11-14.
 const BUDGET = 196143;
 const dist = new URL("../crates/zerowol/web/dist/", import.meta.url);
 let total = 0;
