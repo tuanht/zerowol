@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { clashes, repeatLabel } from "../lib/schedules.js";
+import { clashes, closeScheduleForm, formState, openScheduleForm, repeatLabel } from "../lib/schedules.js";
 
 const rule = (id, machine_id, time, repeat, enabled = true) => ({ id, machine_id, action: "wake", time, repeat, enabled });
 const daily = { kind: "daily" };
@@ -36,5 +36,23 @@ describe("repeatLabel", () => {
     expect(repeatLabel({ kind: "weekly", days: ["mon", "fri"] })).toBe("Weekly · Mon, Fri");
     expect(repeatLabel({ kind: "daily" })).toBe("Daily");
     expect(repeatLabel({ kind: "once", date: "2026-11-13" })).toBe("Once · 13 Nov");
+  });
+});
+
+describe("openScheduleForm", () => {
+  it("a stale close does not settle a newer form", async () => {
+    const first = openScheduleForm({ machineId: "m1" });
+    const oldSeq = formState.seq;
+    const second = openScheduleForm({ machineId: "m2" });
+    expect(await first).toBe(false); // superseded
+    closeScheduleForm(oldSeq, true); // the first popup's late "closed" event
+    expect(formState.open).toBe(true);
+    let settled = false;
+    second.then(() => (settled = true));
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    closeScheduleForm(formState.seq, true);
+    expect(await second).toBe(true);
+    expect(formState.open).toBe(false);
   });
 });

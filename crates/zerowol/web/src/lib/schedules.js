@@ -146,7 +146,9 @@ export function openScheduleForm({ machineId, schedule } = {}) {
   });
   return new Promise((r) => (resolveForm = r));
 }
-export function closeScheduleForm(result) {
+// `seq` is the open this popup was showing: a late "closed" event from an earlier open is ignored.
+export function closeScheduleForm(seq, result) {
+  if (seq !== formState.seq) return;
   formState.open = false;
   const r = resolveForm;
   resolveForm = null;

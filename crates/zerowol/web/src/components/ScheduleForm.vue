@@ -19,6 +19,7 @@ const err = ref("");
 const busy = ref(false);
 const draft = reactive({ machine_id: "", action: "wake", time: "08:00", kind: "daily", date: "", days: [], enabled: true });
 let result = false;
+let shownSeq = 0; // the open (formState.seq) the popup is showing
 
 const zone = browserZone();
 const offset = zoneOffset(zone);
@@ -46,11 +47,12 @@ const rowCls = ["item-content item-input", ios ? "" : "item-input-outline"];
 
 watch(
   () => formState.seq,
-  async () => {
+  async (seq) => {
     if (!formState.open) return;
     try {
       await reloadSchedules();
     } catch {}
+    if (seq !== formState.seq) return; // opened again meanwhile: that call fills the form
     const st = schedState.settings;
     const today = todayIn(st && st.timezone);
     const s = formState.schedule;
@@ -67,6 +69,7 @@ watch(
     busy.value = false;
     result = false;
     step.value = !s && st && st.timezone == null ? "tz" : "form";
+    shownSeq = seq;
     opened.value = true;
   },
 );
@@ -143,7 +146,7 @@ async function del() {
 const cancel = () => (opened.value = false);
 // iOS centres the navbar title by measuring it: again once the popup is shown with its new title.
 const sizeNavbar = (p) => nextTick(() => p.el.querySelectorAll(".navbar").forEach((n) => f7.navbar.size(n)));
-const onClosed = () => closeScheduleForm(result);
+const onClosed = () => closeScheduleForm(shownSeq, result);
 </script>
 
 <template>
@@ -159,6 +162,13 @@ const onClosed = () => closeScheduleForm(result);
           <f7-link :class="{ disabled: busy }" @click="save"><b v-if="ios">{{ saveLabel }}</b><template v-else>{{ saveLabel }}</template></f7-link>
         </template>
       </f7-navbar>
+      <!-- Material wide (M3 dialog): Cancel / Save pinned at the bottom right by F7's bottom toolbar -->
+      <div v-if="dialog" class="toolbar toolbar-bottom">
+        <div class="toolbar-inner justify-content-flex-end">
+          <a class="button" href="#" @click.prevent="cancel">Cancel</a>
+          <a v-if="step === 'form'" class="button" :class="{ disabled: busy }" href="#" @click.prevent="save">Save</a>
+        </div>
+      </div>
       <div class="page-content">
         <div v-if="dialog" class="block-title block-title-large">{{ title }}</div>
 
@@ -274,7 +284,7 @@ const onClosed = () => closeScheduleForm(result);
         </form>
 
         <div v-if="step === 'form' && clash && machine" class="block block-strong inset" role="status">
-          ⚠️ Another schedule acts on {{ machine.name }} at {{ clash.time }}. The second action may be rejected.
+          Another schedule acts on {{ machine.name }} at {{ clash.time }}. The second action may be rejected.
         </div>
         <div class="block errmsg" role="alert">{{ err }}</div>
 
@@ -289,10 +299,6 @@ const onClosed = () => closeScheduleForm(result);
           </div>
         </template>
 
-        <div v-if="dialog" class="block display-flex justify-content-flex-end">
-          <a class="button" href="#" @click.prevent="cancel">Cancel</a>
-          <a v-if="step === 'form'" class="button" :class="{ disabled: busy }" href="#" @click.prevent="save">Save</a>
-        </div>
       </div>
     </div>
   </f7-popup>

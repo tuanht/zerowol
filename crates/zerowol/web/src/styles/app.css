@@ -22,8 +22,8 @@
 .card-footer.actions .ico{width:18px;height:18px}
 /* iOS: the schedules cell is icon-only, so it doesn't take an equal share of the split footer */
 .zw-ios .card-footer.actions .zw-sched-btn{flex:none;width:60px}
-/* the clock's <i class="icon"> (there for F7's icon badge placement) wraps an inline SVG: no text line box */
-.zw-sched-btn i.icon{display:flex}
+/* our inline clock SVG would sit on a text baseline inside F7's <i class="icon"> (kept for its badge placement) */
+.zw-sched-btn .ico{display:block}
 .foot{max-width:640px;margin-left:auto;margin-right:auto}
 .empty .item-inner{justify-content:center;text-align:center;padding:28px 0}
 .empty b{display:block;font-size:19px;margin-bottom:4px}
@@ -55,6 +55,7 @@
 .zw-seg-row{padding:8px 16px}
 /* "Choose another…": the native timezone <select> covers our button so a tap opens the OS picker */
 .zw-pick select{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}
+/* iOS list rows put the value on the right: mirrors Phase 1's .zw-ios .zw-inline input rule for selects */
 .zw-ios .zw-inline select{text-align:right;text-align-last:right}
 /* machine schedule sheet: auto height (F7 sheet), but our list scrolls once it gets long */
 .zw-sheet-body{max-height:70vh;overflow-y:auto;max-width:672px;margin:0 auto}
