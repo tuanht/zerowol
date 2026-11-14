@@ -80,7 +80,7 @@ async function load() {
   let key = range.value.join();
   try {
     await reloadSchedules();
-    today.value = todayIn(tz.value);
+    tick();
     if (!loaded.value) selected.value = today.value;
     const [from, to] = range.value;
     key = from + "," + to;
@@ -122,10 +122,23 @@ const pick = (o, el) => openOccurrenceActions(o, el);
 // Long press / double-click on a free slot (wide grids): the New Schedule form for a one-off at that date and time.
 // Saving bumps schedState.rev, which reloads this page as for the + button.
 const create = (prefill) => openScheduleForm({ prefill: { kind: "once", ...prefill } });
-// The week grid's current-time line: now in the schedule timezone, ticking every 30 s while the tab is shown.
+// Now in the schedule timezone, for the week grid's current-time line and for "today" (one source, so today's
+// column and the line agree across midnight). Ticks on each minute boundary while the tab is shown.
 const clock = ref(clockIn(tz.value));
-const tick = () => (clock.value = clockIn(tz.value));
+function tick() {
+  clock.value = clockIn(tz.value);
+  today.value = clock.value.date;
+}
 watch(tz, tick);
+let ticker = null;
+function startTicks() {
+  tick();
+  ticker = setTimeout(startTicks, 60e3 - (Date.now() % 60e3) + 50);
+}
+function stopTicks() {
+  clearTimeout(ticker);
+  ticker = null;
+}
 
 // Month view: tapping a day opens its agenda (our DayAgenda) in an F7 popover anchored to the cell.
 // The popover element lives in this page's template; F7 moves it out while open and puts it back on close.
@@ -181,18 +194,16 @@ const moreZones = () =>
 // Reload on showing the tab, and every 60 s while the tab and the document are visible.
 const pageEl = ref(null);
 let timer = null;
-let ticker = null;
 function sync() {
   const el = pageEl.value && pageEl.value.$el;
   const shown = !!el && !!el.closest(".tab-active") && document.visibilityState === "visible";
   if (shown && !timer) {
     load();
     timer = setInterval(load, 60e3);
-    tick();
-    ticker = setInterval(tick, 30e3);
+    startTicks();
   } else if (!shown && timer) {
     clearInterval(timer);
-    clearInterval(ticker);
+    stopTicks();
     timer = null;
   }
 }
@@ -206,7 +217,7 @@ onBeforeUnmount(() => {
   f7.off("tabShow tabHide", sync);
   document.removeEventListener("visibilitychange", sync);
   clearInterval(timer);
-  clearInterval(ticker);
+  stopTicks();
 });
 </script>
 

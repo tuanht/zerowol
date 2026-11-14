@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { ACTION } from "../lib/words.js";
 import { fmtDay } from "../lib/dates.js";
 import { isOff } from "../lib/occurrences.js";
@@ -56,10 +56,23 @@ const lp = longPress({
 // On opening a week: scroll the current hour (or the week's first occurrence, else 07:00) near the top,
 // with about a row and a half above it under the sticky day header. Re-renders (the periodic reload) keep the scroll.
 const root = ref(null);
+let sized = null; // waits for a grid mounted in a hidden tab (no layout, nothing to scroll) to be shown
 function scrollToStart() {
   const g = root.value;
   const pc = g && g.closest(".page-content");
   if (!pc) return;
+  if (!g.offsetParent || !pc.clientHeight) {
+    if (!sized) {
+      sized = new ResizeObserver(() => {
+        if (!g.offsetParent || !pc.clientHeight) return;
+        sized.disconnect();
+        sized = null;
+        scrollToStart();
+      });
+      sized.observe(g);
+    }
+    return;
+  }
   const first = props.occurrences.map((o) => o.time).sort()[0];
   const h = nowHour.value >= 0 ? nowHour.value : first ? +first.slice(0, 2) : 7;
   if (h < 2) return void (pc.scrollTop = 0); // the first hours: the page's top, with the bar above the grid
@@ -70,6 +83,10 @@ function scrollToStart() {
   pc.scrollTop += row.top - under - row.height / 2;
 }
 onMounted(() => nextTick(() => requestAnimationFrame(scrollToStart)));
+onBeforeUnmount(() => {
+  lp.destroy();
+  if (sized) sized.disconnect();
+});
 </script>
 
 <template>

@@ -59,15 +59,27 @@ describe("clockIn", () => {
 });
 
 describe("longPress", () => {
-  beforeEach(() => vi.stubGlobal("document", new EventTarget()));
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal("document", new EventTarget());
+  });
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
   });
   const el = () => ({ classList: { add: vi.fn(), remove: vi.fn() } });
-  const ev = (x = 0, y = 0) => ({ button: 0, clientX: x, clientY: y, target: {}, stopPropagation: vi.fn(), preventDefault: vi.fn() });
+  const ev = (x = 0, y = 0, more = {}) => ({ button: 0, pointerId: 1, pointerType: "touch", clientX: x, clientY: y, target: {}, preventDefault: vi.fn(), ...more });
+  // Whether a click on the (stand-in, no DOM here) document gets cancelled by the swallower.
+  const click = () => {
+    const e = new Event("click", { cancelable: true });
+    document.dispatchEvent(e);
+    return e.defaultPrevented;
+  };
+  const longOne = (lp) => {
+    lp.pointerdown(ev());
+    vi.advanceTimersByTime(500);
+  };
   it("fires after the delay and swallows the following click only", () => {
-    vi.useFakeTimers();
     const run = vi.fn();
     const lp = longPress({ find: () => el(), resolve: () => run });
     lp.pointerdown(ev());
@@ -75,22 +87,31 @@ describe("longPress", () => {
     expect(run).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(run).toHaveBeenCalledOnce();
-    // The next click is cancelled, the one after it isn't (a stand-in document: no DOM in these tests).
-    const click = () => {
-      const e = new Event("click", { cancelable: true });
-      document.dispatchEvent(e);
-      return e.defaultPrevented;
-    };
     expect(click()).toBe(true);
     expect(click()).toBe(false);
-    // touch: no click came, the next press drops the swallower
-    lp.pointerdown(ev());
-    vi.advanceTimersByTime(500);
+  });
+  it("the swallower goes with the next press, a key, or after 1 s (touch sends no click)", () => {
+    const lp = longPress({ find: () => el(), resolve: () => () => {} });
+    longOne(lp);
     document.dispatchEvent(new Event("pointerdown"));
     expect(click()).toBe(false);
+    longOne(lp);
+    document.dispatchEvent(new Event("keydown"));
+    expect(click()).toBe(false);
+    longOne(lp);
+    vi.advanceTimersByTime(1000);
+    expect(click()).toBe(false);
   });
-  it("a move past 10 px or an early release cancels it", () => {
-    vi.useFakeTimers();
+  it("an over slot arms nothing and gives no feedback, a non-slot doesn't start", () => {
+    const e = el();
+    const lp = longPress({ find: (t) => (t.slot ? e : null), resolve: () => null });
+    lp.pointerdown(ev());
+    lp.pointerdown(ev(0, 0, { target: { slot: true } }));
+    vi.advanceTimersByTime(600);
+    expect(e.classList.add).not.toHaveBeenCalled();
+    expect(click()).toBe(false);
+  });
+  it("a move past 10 px or an early release cancels it; other pointers are ignored", () => {
     const run = vi.fn();
     const lp = longPress({ find: () => el(), resolve: () => run });
     lp.pointerdown(ev(0, 0));
@@ -98,17 +119,40 @@ describe("longPress", () => {
     lp.pointermove(ev(0, 12));
     vi.advanceTimersByTime(600);
     lp.pointerdown(ev());
-    lp.end();
+    lp.end(ev());
     vi.advanceTimersByTime(600);
     expect(run).not.toHaveBeenCalled();
+    // a second finger neither restarts nor cancels the first one's press
+    lp.pointerdown(ev(0, 0));
+    vi.advanceTimersByTime(300);
+    lp.pointerdown(ev(50, 50, { pointerId: 2 }));
+    lp.pointermove(ev(80, 80, { pointerId: 2 }));
+    lp.end(ev(80, 80, { pointerId: 2 }));
+    vi.advanceTimersByTime(200);
+    expect(run).toHaveBeenCalledOnce();
   });
-  it("an over slot gives no feedback, a non-slot doesn't start", () => {
-    vi.useFakeTimers();
-    const e = el();
-    const lp = longPress({ find: (t) => (t.slot ? e : null), resolve: () => null });
+  it("destroy() drops a pending press and the swallower", () => {
+    const run = vi.fn();
+    const lp = longPress({ find: () => el(), resolve: () => run });
     lp.pointerdown(ev());
-    lp.pointerdown({ ...ev(), target: { slot: true } });
+    lp.destroy();
     vi.advanceTimersByTime(600);
-    expect(e.classList.add).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+    longOne(lp);
+    lp.destroy();
+    expect(click()).toBe(false);
+  });
+  it("suppresses the context menu of touch presses only", () => {
+    const lp = longPress({ find: () => el(), resolve: () => () => {} });
+    const menu = () => {
+      const e = { preventDefault: vi.fn() };
+      lp.contextmenu(e);
+      return e.preventDefault.mock.calls.length > 0;
+    };
+    lp.pointerdown(ev());
+    expect(menu()).toBe(true);
+    lp.end(ev());
+    lp.pointerdown(ev(0, 0, { pointerType: "mouse", button: 2 }));
+    expect(menu()).toBe(false);
   });
 });

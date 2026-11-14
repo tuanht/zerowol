@@ -107,15 +107,18 @@
 .zw-wcell.today{background:rgba(var(--f7-theme-color-rgb),.07)}
 /* a long-pressed / double-clicked slot: a stronger tint while the form opens */
 .zw-wcell.zw-pressed,.zw-mcell.zw-pressed{background:rgba(var(--f7-theme-color-rgb),.2)}
-/* current time (iOS Calendar): the current hour's label is the time in red at the line's height (centred on it),
-   and the next hour's label gives way when they would touch */
+/* current time (iOS Calendar), in the current hour's row at the current minute: */
+/* - that row's hour label holds the time instead, so it isn't dimmed like the other labels */
 .zw-whour.now{opacity:1}
+/* - the time itself: red and bold at the line's height, vertically centred on it */
 .zw-wnow-t{position:absolute;right:8px;transform:translateY(-50%);color:var(--zw-red);font-weight:700}
+/* - the next hour's label gives way when the time would touch it (from :50) */
 .zw-whour.near{visibility:hidden}
-/* the red line across the week at the current minute (over the column hairline, above the chips, never taking
-   taps): faint in the other days, solid in today's column with a dot at its left edge */
+/* - the red line across a day cell: over the column hairline, above the chips, never taking taps; faint in other days */
 .zw-wnow{position:absolute;left:-1px;right:0;height:2px;margin-top:-1px;background:var(--zw-red);opacity:.3;z-index:1;pointer-events:none}
+/* - solid in today's column */
 .zw-wnow.today{opacity:1}
+/* - with a dot centred on its left edge in today's column */
 .zw-wnow.today::before{content:"";position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--zw-red)}
 /* month grid: 7 equal columns; the cells' fixed height keeps the 6 week rows equal and inside a 1280×800 window */
 .zw-mgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}

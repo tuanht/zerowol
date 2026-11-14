@@ -40,7 +40,8 @@ const lp = longPress({
   },
 });
 // A mouse click waits out the double-click interval before opening the day (the open popover would take the
-// second click); touch and keyboard open it at once.
+// second click); touch and keyboard open it at once. With an OS double-click speed slower than 300 ms the popover
+// opens first and takes the second click (acceptable: the long press still works, and the wait stays short).
 let mouse = false;
 let wait = 0;
 function down(e) {
@@ -54,7 +55,10 @@ function tap(d, e) {
   if (mouse && e.detail === 1) wait = setTimeout(() => emit("pick", d, el), 300);
   else emit("pick", d, el);
 }
-onBeforeUnmount(() => clearTimeout(wait));
+onBeforeUnmount(() => {
+  clearTimeout(wait);
+  lp.destroy();
+});
 </script>
 
 <template>
