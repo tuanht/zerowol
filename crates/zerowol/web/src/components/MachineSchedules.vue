@@ -63,7 +63,13 @@ async function openForm(schedule) {
                 <div class="item-after">
                   <span class="zw-pill" :class="s.action">{{ ACTION[s.action] }}</span>
                   <label class="toggle" :class="{ disabled: busy === s.id || (!s.enabled && needsAgent(s)) }" @click.stop @keydown.enter.stop>
-                    <input type="checkbox" :checked="s.enabled" :aria-label="'Enabled ' + s.time" @change="toggle(s, $event)" />
+                    <input
+                      type="checkbox"
+                      :checked="s.enabled"
+                      :disabled="busy === s.id || (!s.enabled && needsAgent(s))"
+                      :aria-label="'Enabled ' + s.time"
+                      @change="toggle(s, $event)"
+                    />
                     <span class="toggle-icon" />
                   </label>
                 </div>

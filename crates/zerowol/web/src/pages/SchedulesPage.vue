@@ -1,5 +1,5 @@
 <script setup>
-import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, inject, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { f7 } from "framework7-vue";
 import Icon from "../components/Icon.vue";
 import ZonePicker from "../components/ZonePicker.vue";
@@ -73,6 +73,7 @@ const held = ref(""); // the range `occs` belongs to
 // Only show occurrences under the range they were loaded for (e.g. not a week's worth in a fresh Month view).
 const ready = computed(() => held.value === range.value.join());
 const failed = ref(false); // this range's occurrences could not be loaded
+let toasted = false; // the current failure streak has been announced (the 60 s reload doesn't repeat it)
 async function load() {
   const n = ++seq;
   let key = range.value.join();
@@ -89,6 +90,7 @@ async function load() {
     failed.value = false;
     now.value = Date.now() / 1000;
     loaded.value = true;
+    toasted = false;
   } catch (e) {
     if (n !== seq) return;
     // Never show another range's occurrences under this range's dates.
@@ -99,7 +101,10 @@ async function load() {
       loaded.value = true; // show the strip and the failure line, not a blank page
     }
     // Offline is already announced by the app-wide banner.
-    if (!machines.offline) toast(offlineMsg(e));
+    if (!machines.offline && !toasted) {
+      toast(offlineMsg(e));
+      toasted = true;
+    }
   }
 }
 watch(() => range.value.join(), () => loaded.value && load());
@@ -122,7 +127,7 @@ const popOccs = computed(() => occs.value.filter((o) => o.date === popDate.value
 let pop = null;
 let popCell = null;
 let popPicked = null;
-function pickDate(d, el) {
+async function pickDate(d, el) {
   popDate.value = d;
   popCell = el;
   popPicked = null;
@@ -133,6 +138,8 @@ function pickDate(d, el) {
       closed: () => popPicked && openOccurrenceActions(popPicked, popCell),
     },
   });
+  // Open once the popover shows the new day, so F7 sizes and places it for that content.
+  await nextTick();
   pop.open(el);
 }
 function popPick(o) {
@@ -214,7 +221,7 @@ onBeforeUnmount(() => {
           <ViewSwitch v-model="view" :views="VIEWS" />
         </div>
 
-        <WeekStrip :days="days" :selected="view === 'day' ? selected : ''" :today="today" :occurrences="ready ? occs : []" @select="pickDay" @week="shift" />
+        <WeekStrip :days="days" :selected="view === 'day' ? selected : ''" :today="today" :occurrences="ready ? occs : []" :now="now" @select="pickDay" @week="shift" />
       </template>
 
       <div v-if="failed" class="block text-align-center">

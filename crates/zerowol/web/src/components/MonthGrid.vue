@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { ACTION } from "../lib/words.js";
 import { fmtLong, monthGrid } from "../lib/dates.js";
-import { isOff } from "../lib/occurrences.js";
+import { dotClass, isOff } from "../lib/occurrences.js";
 
 const props = defineProps({
   month: { type: String, required: true }, // any date in the month
@@ -21,7 +21,7 @@ const cells = computed(() => {
   const ym = props.month.slice(0, 7);
   return monthGrid(props.month).map((d) => {
     const list = by[d] || [];
-    const colours = new Set(list.filter((o) => o.repeat_kind !== "once").map((o) => (isOff(o, props.now) ? "off" : o.action)));
+    const colours = new Set(list.filter((o) => o.repeat_kind !== "once").map((o) => dotClass(o, props.now)));
     const chips = list.filter((o) => o.repeat_kind === "once");
     return { d, out: d.slice(0, 7) !== ym, dots: ORDER.filter((c) => colours.has(c)), chips: chips.slice(0, 2), more: chips.length - 2 };
   });

@@ -38,6 +38,13 @@ async function editRule(id) {
 // Greyed when the rule is off, except an occurrence that already ran (a once rule switches itself off after firing).
 export const isOff = (o, now) => !o.enabled && !(o.outcome && o.at <= now);
 
+// Colour of an occurrence's dot in the week strip and month grid: grey ("off") when the rule is off or
+// the occurrence is skipped, else its action colour.
+export const dotClass = (o, now) => (o.skipped || isOff(o, now) ? "off" : o.action);
+
+// Skip / Don't skip is offered only for an occurrence still ahead that hasn't run (a past one keeps its outcome).
+export const canSkip = (o, now) => o.at > now && !o.outcome;
+
 // Past / skipped status of an occurrence for its agenda row ("" for an upcoming one).
 export function outcomeText(o, now) {
   if (o.skipped) return "skipped";
@@ -61,9 +68,13 @@ export function openOccurrenceActions(occ, targetEl) {
     const groups = [
       [
         { text: esc(occ.machine_name + " · " + ACTION[occ.action] + " · " + occ.time), label: true },
-        occ.skipped
-          ? { text: "Don't skip", onClick: pick(() => run(() => unskip(occ.schedule_id, occ.date))) }
-          : { text: "Skip this time", onClick: pick(() => run(() => skip(occ.schedule_id, occ.date))) },
+        ...(canSkip(occ, Date.now() / 1000)
+          ? [
+              occ.skipped
+                ? { text: "Don't skip", onClick: pick(() => run(() => unskip(occ.schedule_id, occ.date))) }
+                : { text: "Skip this time", onClick: pick(() => run(() => skip(occ.schedule_id, occ.date))) },
+            ]
+          : []),
         { text: "Edit rule…", onClick: pick(() => editRule(occ.schedule_id)) },
         {
           text: "Delete rule",

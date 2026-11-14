@@ -29,6 +29,8 @@ const title = computed(() => (step.value === "tz" ? "Timezone" : edit.value ? "E
 const saveLabel = computed(() => (ios ? (edit.value ? "Done" : "Add") : "Save"));
 const machine = computed(() => machines.machines.find((m) => m.id === draft.machine_id));
 const noAgent = computed(() => !!machine.value && !machine.value.agent);
+// A power rule that is off can't be switched on without the agent (the server would reject it), as in MachineSchedules.
+const enableLocked = computed(() => noAgent.value && draft.action !== "wake" && !draft.enabled);
 const repeat = computed(() => {
   const kind = draft.kind;
   if (kind === "once") return { kind, date: draft.date };
@@ -229,7 +231,7 @@ const onClosed = () => closeScheduleForm(shownSeq, result);
               <li v-if="draft.kind === 'once'" :class="rowCls">
                 <div class="item-inner">
                   <div class="item-title item-label"><label for="s-date">Date</label></div>
-                  <div class="item-input-wrap"><input id="s-date" v-model="draft.date" type="date" required /></div>
+                  <div class="item-input-wrap"><input id="s-date" v-model="draft.date" type="date" min="1970-01-01" max="2999-12-31" required /></div>
                 </div>
               </li>
               <li v-if="draft.kind === 'weekly'" class="zw-days" role="group" aria-label="Days">
@@ -255,7 +257,10 @@ const onClosed = () => closeScheduleForm(shownSeq, result);
                 <div class="item-inner">
                   <div class="item-title"><label for="s-enabled">Enabled</label></div>
                   <div class="item-after">
-                    <label class="toggle"><input id="s-enabled" v-model="draft.enabled" type="checkbox" /><span class="toggle-icon" /></label>
+                    <label class="toggle" :class="{ disabled: enableLocked }">
+                      <input id="s-enabled" v-model="draft.enabled" type="checkbox" :disabled="enableLocked" />
+                      <span class="toggle-icon" />
+                    </label>
                   </div>
                 </div>
               </li>

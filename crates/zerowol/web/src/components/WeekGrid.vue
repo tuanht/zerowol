@@ -48,7 +48,7 @@ const text = (o) => o.machine_name + " · " + ACTION[o.action];
             :title="o.time + ' ' + text(o) + (o.skipped ? ' (skipped)' : '')"
             @click="emit('pick', o, $event.currentTarget)"
           >
-            <component :is="o.skipped ? 's' : 'span'">{{ text(o) }}</component>
+            <component :is="o.skipped ? 's' : 'span'">{{ o.time }} {{ text(o) }}</component>
           </button>
         </div>
       </template>

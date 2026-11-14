@@ -2,21 +2,23 @@
 import { computed } from "vue";
 import Icon from "./Icon.vue";
 import { fmtLong, fmtRange } from "../lib/dates.js";
+import { dotClass } from "../lib/occurrences.js";
 
 const props = defineProps({
   days: { type: Array, required: true }, // 7 dates, Monday first
   selected: { type: String, default: "" },
   today: { type: String, default: "" },
   occurrences: { type: Array, default: () => [] },
+  now: { type: Number, default: 0 }, // unix seconds
 });
 const emit = defineEmits(["select", "week"]);
 const LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
-const ORDER = ["wake", "reboot", "poweroff"];
+const ORDER = ["wake", "reboot", "poweroff", "off"];
 
-// One dot per action colour per day.
+// One dot per colour per day (grey for off / skipped occurrences).
 const dots = computed(() => {
   const by = {};
-  for (const o of props.occurrences) (by[o.date] ||= new Set()).add(o.action);
+  for (const o of props.occurrences) (by[o.date] ||= new Set()).add(dotClass(o, props.now));
   return Object.fromEntries(Object.entries(by).map(([d, s]) => [d, ORDER.filter((a) => s.has(a))]));
 });
 const title = computed(() => fmtRange(props.days[0], props.days[6]));

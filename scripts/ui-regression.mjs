@@ -248,6 +248,7 @@ const cases = {
   "schedules wide: week grid fits, month grid, popovers, breakpoint keeps the date": async (p) => {
     const S = "#view-schedules .page-current[data-name=schedules]";
     // Fixed occurrences: 8 distinct hours every day (3 of them once rules on the 10th), so the layout is measured at its limit.
+    // All in the future (Skip is offered only ahead of time); the 23:30 rule is switched off (a grey dot / chip).
     const HOURS = ["00", "02", "05", "07", "08", "12", "18", "23"];
     const ACTS = ["wake", "reboot", "poweroff"];
     await p.route("**/api/v1/schedules/occurrences?**", async (route) => {
@@ -259,7 +260,7 @@ const cases = {
         HOURS.forEach((h, i) => {
           const once = d.endsWith("-10") && i < 3;
           out.push({ schedule_id: (once ? "o" : "r") + i, machine_id: "dev-ws", machine_name: "Workstation", action: ACTS[i % 3],
-            repeat_kind: once ? "once" : "daily", date: d, time: h + ":30", at: 0, skipped: false, enabled: true, outcome: null });
+            repeat_kind: once ? "once" : "daily", date: d, time: h + ":30", at: 4e9, skipped: false, enabled: i !== 7, outcome: null });
         });
         d = addDay(d, 1);
       }
@@ -273,6 +274,9 @@ const cases = {
       await p.click(`${S} .zw-strip [aria-label='Next week']`);
       await p.waitForTimeout(400);
       const monday = +(await p.locator(`${S} .zw-day .zw-num`).first().innerText());
+      // The switched-off rule's dot is grey, the others keep their action colours.
+      const dots = await p.locator(`${S} .zw-day >> nth=0`).locator(".dot").evaluateAll((d) => d.map((e) => e.className));
+      if (dots.join("|") !== "dot wake|dot reboot|dot poweroff|dot off") throw new Error(`week strip dots ${dots.join("|")}`);
       await p.setViewportSize({ width: 1280, height: 800 });
       await p.waitForSelector(`${S} .zw-wgrid .zw-chip`);
       await p.waitForTimeout(400);
@@ -290,6 +294,9 @@ const cases = {
       if (Math.max(...hw) - Math.min(...hw) > 1) throw new Error(`unequal day columns ${JSON.stringify(hw)}`);
       // 8 hours fit a 1280x800 window: no vertical scroll, nothing past the edges.
       if (w.scroll > 0 || w.bottom > w.ih || w.right > w.iw) throw new Error(`week grid doesn't fit 1280x800 ${JSON.stringify(w)}`);
+      // Chips carry their minutes.
+      const chip = (await p.locator(`${S} .zw-wgrid .zw-chip >> nth=0`).innerText()).trim();
+      if (chip !== "00:30 Workstation · Wake") throw new Error(`week chip "${chip}"`);
       // A repeating chip's actions open as a popover on wide screens.
       await p.click(`${S} .zw-wgrid .zw-chip >> nth=0`);
       await p.waitForSelector(".popover.modal-in:has-text('Skip this time')");
@@ -326,6 +333,11 @@ const cases = {
       await p.waitForSelector(".popover.modal-in.zw-day-pop");
       const rows = await p.locator(".zw-day-pop .item-link").count();
       if (rows !== 8) throw new Error(`day popover has ${rows} rows, want 8`);
+      // Opened after its content rendered, so F7 sized and placed it for all 8 rows: inside the window.
+      await p.waitForTimeout(400);
+      const pr = await p.evaluate(() => { const r = document.querySelector(".zw-day-pop.modal-in").getBoundingClientRect();
+        return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, ih: innerHeight, iw: innerWidth }; });
+      if (pr.top < 0 || pr.left < 0 || pr.bottom > pr.ih || pr.right > pr.iw) throw new Error(`day popover outside the window ${JSON.stringify(pr)}`);
       await p.click(".zw-day-pop .item-link >> nth=1");
       await p.waitForSelector(".popover.modal-in:has-text('Skip this time')");
       if (await p.locator(".zw-day-pop.modal-in").count()) throw new Error("day popover still open under the actions");
