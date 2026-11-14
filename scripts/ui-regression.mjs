@@ -3,7 +3,12 @@
 // Cases that change data clean up after themselves: "hostile machine name"
 // creates a machine and deletes it again, the schedule cases remove the rules
 // they create, and "no tz prompt" restores the saved timezone. Use
-// scripts/ui-regression.sh to build, start a throwaway server and run this.
+// scripts/ui-regression.sh to build, start throwaway servers and run this.
+//
+// Usage: node scripts/ui-regression.mjs <base-url> [md|ios]
+// The optional theme runs just that theme (default: both, one after the other; the shell script runs
+// each theme against its own server in parallel). Env: UI_ONLY="<regex>" runs only the cases whose
+// name matches (case-insensitive), UI_THEME=md|ios is the same as the theme argument.
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 let pw;
@@ -13,7 +18,10 @@ try { pw = require("playwright"); } catch {
 }
 const { chromium, devices } = pw;
 const base = process.argv[2];
-if (!base) { console.error("usage: node scripts/ui-regression.mjs <base-url>"); process.exit(2); }
+if (!base) { console.error("usage: node scripts/ui-regression.mjs <base-url> [md|ios]"); process.exit(2); }
+const themeArg = process.argv[3] || process.env.UI_THEME || "";
+if (themeArg && !["md", "ios"].includes(themeArg)) { console.error(`unknown theme "${themeArg}" (md or ios)`); process.exit(2); }
+const only = process.env.UI_ONLY ? new RegExp(process.env.UI_ONLY, "i") : null;
 
 // Everything is scoped to the active tab's current page: Framework7 keeps the
 // previous page (and the other tabs) in the DOM.
@@ -26,6 +34,19 @@ const OLD_WORDING = /Restart|Shut Down|Shutting down/;
 // tests switch that timer off: only the repaint on returning to the list may
 // fill it.
 const SETTLE = 1500;
+// Condition waits instead of fixed sleeps. `settled`: Framework7's page push/pop transition is over.
+// `stable`: the element exists and has not moved or resized for 3 frames (a modal's open animation is over).
+// `frames`: a few animation frames, for a layout the browser applies at once (a viewport resize).
+const settled = (p) => p.waitForFunction(() => !document.querySelector(".page-transitioning, .router-transition"), null, { polling: "raf" });
+const stable = (p, sel) => p.waitForFunction((sel) => {
+  const e = document.querySelector(sel);
+  if (!e) return false;
+  const r = e.getBoundingClientRect(), k = [r.x, r.y, r.width, r.height].join();
+  const s = (window.__stable ||= {});
+  if (s.sel === sel && s.k === k) s.n++; else { s.sel = sel; s.k = k; s.n = 0; }
+  return s.n >= 3;
+}, sel, { polling: "raf" });
+const frames = (p, n = 3) => p.evaluate((n) => new Promise((ok) => { const t = () => (n-- > 0 ? requestAnimationFrame(t) : ok()); t(); }), n);
 const noPoll = () => {
   const st = window.setTimeout.bind(window);
   window.setTimeout = (f, d, ...a) => (d === 5000 ? 0 : st(f, d, ...a));
@@ -49,13 +70,13 @@ const cases = {
     await openPairing(p);
     await p.click(`${CUR} .navbar .right .link:has-text('Done')`);
     await p.waitForSelector(".view.tab-active .page-current[data-name=machine]");
-    await p.waitForTimeout(500);
+    await settled(p);
     await back(p);
   },
   "agent install via the card's Pair button -> back": async (p) => {
     await p.click(`${CARDS} button:has-text('Pair') >> nth=0`);
     await p.waitForSelector(`${CUR}[data-name=pair]`);
-    await p.waitForTimeout(500);
+    await settled(p);
     await back(p);
   },
   "machine -> agent install -> back, machine again -> back, back": async (p) => {
@@ -87,7 +108,7 @@ const cases = {
       await openMachine(p);
       await p.goBack();
       await p.waitForSelector(`${CUR}[data-name=machines]`, { timeout: SETTLE });
-      await p.waitForTimeout(450);
+      await settled(p);
       if (new URL(p.url()).origin !== origin) throw new Error("left the app: " + p.url());
     },
   },
@@ -105,14 +126,14 @@ const cases = {
       if ((await fab()) !== 1) throw new Error("FAB missing after back");
       await p.click(".zw-fab a");
       await p.waitForSelector(`${CUR}[data-name=machine] #f-name`);
-      await p.waitForTimeout(500);
+      await settled(p);
       if ((await fab()) !== 0) throw new Error("FAB on the add page");
       await back(p);
       if ((await fab()) !== 1) throw new Error("FAB missing after back from add");
       await openMachine(p);
       await p.goBack(); // Android back path
       await p.waitForSelector(`${CUR}[data-name=machines]`, { timeout: SETTLE });
-      await p.waitForTimeout(450);
+      await settled(p);
       if ((await fab()) !== 1) throw new Error("FAB missing after system back");
     },
   },
@@ -124,7 +145,7 @@ const cases = {
       return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, width: r.width, ih: innerHeight, iw: innerWidth };
     });
     await p.setViewportSize({ width: 375, height: 812 });
-    await p.waitForTimeout(300);
+    await frames(p, 5);
     let r = await nav();
     // iOS: floating capsule a few px above the bottom edge, inset from the sides;
     // Material: navigation bar flush with the bottom edge.
@@ -132,7 +153,7 @@ const cases = {
       throw new Error(`375px: iOS floating tab bar not at the bottom (${JSON.stringify(r)})`);
     if (theme === "md" && Math.abs(r.bottom - r.ih) > 2) throw new Error(`375px: tab bar not at the bottom (${JSON.stringify(r)})`);
     await p.setViewportSize({ width: 1280, height: 800 });
-    await p.waitForTimeout(300);
+    await frames(p, 5);
     r = await nav();
     if (theme === "ios" && !(r.top < 40)) throw new Error(`1280px: iOS capsule not at the top (${JSON.stringify(r)})`);
     if (theme === "md" && !(Math.abs(r.width - 80) <= 1 && r.left === 0)) throw new Error(`1280px: no 80px Material rail (${JSON.stringify(r)})`);
@@ -142,7 +163,7 @@ const cases = {
       if (Math.abs(f.left + f.width / 2 - 40) > 1) throw new Error(`1280px: FAB not centred in the rail (${JSON.stringify(f)})`);
     }
     await p.setViewportSize(vp);
-    await p.waitForTimeout(300);
+    await frames(p, 5);
   },
   "hostile machine name renders as text": async (p) => {
     const id = await p.evaluate(async (name) => {
@@ -173,7 +194,7 @@ const cases = {
       if (!text.includes("<img")) throw new Error("confirm does not show the name as text: " + JSON.stringify(text));
       if (await p.evaluate(() => window.__x !== undefined)) throw new Error("machine name was run as HTML");
       await p.click(".dialog.modal-in .dialog-button:has-text('Cancel')");
-      await p.waitForTimeout(400);
+      await p.waitForSelector(".dialog.modal-in", { state: "detached" });
       if (await p.evaluate(() => window.__x !== undefined)) throw new Error("machine name was run as HTML");
       // Toast: back to its real (offline) status, Wake it, and have the server
       // answer "already online" so the app toasts "<name> is already online".
@@ -210,7 +231,7 @@ const cases = {
     await clock.click();
     const F = ".zw-sched-form.modal-in";
     await p.waitForSelector(F);
-    await p.waitForTimeout(700);
+    await stable(p, F);
     await p.waitForSelector(`${F} .segmented`);
     // The action segmented control spans its list row (less the row's 16px side padding).
     const [seg, row] = [await p.locator(`${F} .segmented`).boundingBox(), await p.locator(`${F} .zw-seg-row`).boundingBox()];
@@ -272,14 +293,15 @@ const cases = {
       await p.waitForSelector(`${S} .zw-strip`);
       // Phone: move to next week, then widen: the wide Week grid shows that same week.
       await p.click(`${S} .zw-strip [aria-label='Next week']`);
-      await p.waitForTimeout(400);
+      await p.waitForSelector(`${S} .zw-strip .zw-day.today`, { state: "detached" });
+      await frames(p, 3);
       const monday = +(await p.locator(`${S} .zw-day .zw-num`).first().innerText());
       // The switched-off rule's dot is grey, the others keep their action colours.
       const dots = await p.locator(`${S} .zw-day >> nth=0`).locator(".dot").evaluateAll((d) => d.map((e) => e.className));
       if (dots.join("|") !== "dot wake|dot reboot|dot poweroff|dot off") throw new Error(`week strip dots ${dots.join("|")}`);
       await p.setViewportSize({ width: 1280, height: 800 });
       await p.waitForSelector(`${S} .zw-wgrid .zw-chip`);
-      await p.waitForTimeout(400);
+      await stable(p, `${S} .zw-wgrid`);
       const segs = await p.locator(`${S} .segmented button`).allInnerTexts();
       if (segs.join("|") !== "Week|Month") throw new Error(`wide views ${segs.join("|")}`);
       const w = await p.evaluate((sel) => {
@@ -318,11 +340,11 @@ const cases = {
       await p.touchscreen.tap(1270, 790); // outside it; a tap, as F7 pairs touchstart with the click on touch devices
       await p.waitForSelector(".popover.modal-in", { state: "detached" });
       await p.click(`${S} .segmented button:has-text('Month')`);
-      await p.waitForTimeout(200);
+      await frames(p, 3);
       // Until the month's data arrives, neither the week's occurrences in a month grid nor the empty state.
       if (await p.locator(`${S} .zw-mgrid, ${S} :text('No schedules')`).count()) throw new Error("month view drew before its data arrived");
       await p.waitForSelector(`${S} .zw-mgrid`);
-      await p.waitForTimeout(400);
+      await stable(p, `${S} .zw-mgrid`);
       const m = await p.evaluate((sel) => {
         const pc = document.querySelector(sel + " .page-content");
         const c = [...document.querySelectorAll(sel + " .zw-mcell")].map((e) => e.getBoundingClientRect());
@@ -348,7 +370,7 @@ const cases = {
       const rows = await p.locator(".zw-day-pop .item-link").count();
       if (rows !== 8) throw new Error(`day popover has ${rows} rows, want 8`);
       // Opened after its content rendered, so F7 sized and placed it for all 8 rows: inside the window.
-      await p.waitForTimeout(400);
+      await stable(p, ".zw-day-pop.modal-in");
       const pr = await p.evaluate(() => { const r = document.querySelector(".zw-day-pop.modal-in").getBoundingClientRect();
         return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, ih: innerHeight, iw: innerWidth }; });
       if (pr.top < 0 || pr.left < 0 || pr.bottom > pr.ih || pr.right > pr.iw) throw new Error(`day popover outside the window ${JSON.stringify(pr)}`);
@@ -385,18 +407,18 @@ const cases = {
         const b = await loc.boundingBox();
         await p.mouse.move(b.x + b.width / 2, b.y + b.height * dy);
         await p.mouse.down();
-        await p.waitForTimeout(650);
+        await p.waitForTimeout(550); // the app's long press is 500 ms
         await p.mouse.up();
       };
       const form = async () => {
         await p.waitForSelector(`${F} #s-time`);
-        await p.waitForTimeout(700);
+        await stable(p, F);
         return [await p.inputValue(`${F} #s-repeat`), await p.inputValue(`${F} #s-date`), await p.inputValue(`${F} #s-time`)].join(" ");
       };
       const cancel = async () => {
         await p.click(`${F} .navbar .left a, ${F} .toolbar a:has-text('Cancel')`);
         await p.waitForSelector(F, { state: "detached", timeout: 3000 });
-        await p.waitForTimeout(500); // the popup's backdrop fades out after it
+        await p.waitForFunction(() => !document.querySelector(".modal-out, .backdrop-out"), null, { polling: "raf" }); // the popup's backdrop fades out after it
       };
       const closePopover = async () => {
         await p.waitForTimeout(500); // F7 binds its outside-tap close once the popover has opened
@@ -407,7 +429,7 @@ const cases = {
         await tab(p, "Schedules");
         await p.setViewportSize({ width: 1280, height: 800 });
         await p.waitForSelector(`${S} .zw-wgrid .zw-whead.today`);
-        await p.waitForTimeout(600);
+        await stable(p, `${S} .zw-wgrid`);
         // (a) 24 hour rows; this week: the current time (in the schedule timezone, not the browser's) in red in its
         // hour row, the solid line inside today's column, and that row scrolled into view under the sticky header.
         const zones = await p.evaluate(async () => [(await (await fetch("/api/v1/settings")).json()).timezone, Intl.DateTimeFormat().resolvedOptions().timeZone]);
@@ -416,7 +438,7 @@ const cases = {
         // (b) next week: a long press on an empty slot opens New Schedule for a one-off there at HH:00.
         await p.click(`${S} [aria-label='Next week']`);
         await p.waitForSelector(`${S} .zw-wgrid:not(:has(.zw-whead.today))`);
-        await p.waitForTimeout(400);
+        await stable(p, `${S} .zw-wgrid`);
         const slot = await emptyCell(p, 10);
         const date = await slot.getAttribute("data-date");
         await hold(slot);
@@ -436,23 +458,27 @@ const cases = {
         if (await p.locator(F).count()) throw new Error("long press on a chip opened the form");
         await closePopover();
         // Last week: every slot is over, a long press opens nothing.
+        const wk = await (await emptyCell(p, 12)).getAttribute("data-date");
         await p.click(`${S} [aria-label='Previous week']`);
         await p.click(`${S} [aria-label='Previous week']`);
-        await p.waitForTimeout(800);
+        await p.waitForFunction(([sel, d]) => { const c = document.querySelector(sel + " .zw-wcell[data-hour='12']"); return c && c.dataset.date < d; }, [S, wk]);
+        await stable(p, `${S} .zw-wgrid`);
         await hold(await emptyCell(p, 12));
-        await p.waitForTimeout(800);
+        await p.waitForTimeout(350); // a negative check: give the (absent) form or popover time to appear
         if (await p.locator(`${F}, .popover.modal-in`).count()) throw new Error("long press on a past slot opened something");
         // (c) month, next month: a long press on a day opens the form for it at 08:00 (and not its popover) ...
         await p.click(`${S} .segmented button:has-text('Month')`);
         await p.waitForSelector(`${S} .zw-mgrid`);
+        const m0 = await p.locator(`${S} .zw-mcell:not(.out) >> nth=14`).getAttribute("data-date");
         await p.click(`${S} [aria-label='Next month']`);
-        await p.waitForTimeout(800);
+        await p.waitForFunction(([sel, d]) => { const c = document.querySelectorAll(sel + " .zw-mcell:not(.out)")[14]; return c && c.dataset.date > d; }, [S, m0]);
+        await stable(p, `${S} .zw-mgrid`);
         const day = p.locator(`${S} .zw-mcell:not(.out) >> nth=14`);
         const d = await day.getAttribute("data-date");
         await hold(day, 0.8);
         const got3 = await form();
         if (got3 !== `once ${d} 08:00`) throw new Error(`month long-press form "${got3}", want "once ${d} 08:00"`);
-        await p.waitForTimeout(500);
+        await p.waitForTimeout(350); // a negative check: the 300 ms mouse-click delay of the month grid must pass
         if (await p.locator(".zw-day-pop.modal-in").count()) throw new Error("the day popover opened after the long press");
         await cancel();
         // ... while a tap still opens the day's popover.
@@ -474,20 +500,21 @@ const cases = {
     const vp = p.viewportSize();
     try {
       await p.setViewportSize({ width: 1280, height: 800 });
-      await p.waitForTimeout(400);
+      await frames(p, 5);
       // A machine without rules: its card's button opens the form straight away.
       const card = p.locator(CARDS).filter({ hasText: "Laptop" });
       await card.locator("[aria-label=Schedules]").click();
       const F = ".zw-sched-form.modal-in";
       await p.waitForSelector(`${F} #s-time`);
-      await p.waitForTimeout(700);
+      await stable(p, F);
       await p.fill(`${F} #s-time`, "02:00");
       await p.click(`${F} .navbar .right a, ${F} .toolbar a:has-text('Save')`);
       await p.waitForSelector(F, { state: "detached", timeout: 3000 });
       await p.waitForSelector(`${SCHED} .zw-wgrid`, { state: "attached" });
       if (await p.locator(`${SCHED} .zw-wgrid`).isVisible()) throw new Error("the Schedules grid is visible under the Machines tab");
       await tab(p, "Schedules");
-      await p.waitForTimeout(800);
+      await p.waitForSelector(`${SCHED} .zw-wgrid`, { state: "visible" });
+      await stable(p, `${SCHED} .zw-wgrid`);
       await nowInView(p);
     } finally {
       await p.setViewportSize(vp);
@@ -502,7 +529,7 @@ const cases = {
       await card.locator("[aria-label=Schedules]").click();
       const F = ".zw-sched-form.modal-in";
       await p.waitForSelector(`${F} #s-time`);
-      await p.waitForTimeout(700);
+      await stable(p, F);
       if ((await p.inputValue(`${F} #s-machine`)) !== "dev-ws") throw new Error("form not opened for Workstation");
       await p.click(`${F} .zw-seg-row button:has-text('Power off')`);
       await p.fill(`${F} #s-time`, "02:00");
@@ -531,7 +558,7 @@ const cases = {
         await row.locator("a.item-link").click();
         const btn = p.locator(`.actions-modal.modal-in .actions-button:has-text("${label}")`);
         await btn.waitFor();
-        await p.waitForTimeout(400);
+        await stable(p, ".actions-modal.modal-in");
         await btn.click();
         await p.waitForSelector(".actions-modal.modal-in", { state: "detached", timeout: SETTLE });
       };
@@ -570,7 +597,7 @@ const cases = {
       const F = ".zw-sched-form.modal-in";
       const use = p.locator(`${F} button:has-text('Use ')`);
       await use.waitFor();
-      await p.waitForTimeout(700);
+      await stable(p, F);
       if (await p.locator(`${F} #s-time`).count()) throw new Error("form fields shown before a timezone is set");
       const zone = (await use.innerText()).trim().replace(/^Use /, "");
       await use.click();
@@ -639,7 +666,7 @@ const cases = {
       await tab(p, "Machines");
     });
   },
-  "schedule sheet and form float on iOS phones (inset, rounded), Material sheet stays full width, Close X on the left": async (p, theme) => {
+  "schedule sheet and form are flush (full width) on both themes, Close X on the left": async (p, theme) => {
     const before = await scheduleIds(p);
     const gaps = (sel) => p.evaluate((sel) => {
       const r = document.querySelector(sel).getBoundingClientRect();
@@ -653,13 +680,9 @@ const cases = {
       await p.locator(CARDS).filter({ hasText: "Workstation" }).locator("[aria-label=Schedules]").click();
       const S = ".zw-sched-sheet.modal-in";
       await p.waitForSelector(S);
-      await p.waitForTimeout(700);
+      await stable(p, S);
       const g = await gaps(S);
-      if (theme === "ios") {
-        if (g.left < 6 || g.right < 6 || g.bottom < 6) throw new Error(`iOS sheet not inset: ${JSON.stringify(g)}`);
-        const rad = await p.evaluate((s) => getComputedStyle(document.querySelector(s)).borderTopLeftRadius + "/" + getComputedStyle(document.querySelector(s)).borderBottomRightRadius, S);
-        if (rad.startsWith("0px") || rad.endsWith("0px")) throw new Error(`iOS sheet corners not rounded: ${rad}`);
-      } else if (g.left !== 0 || g.right !== 0 || g.bottom !== 0) throw new Error(`Material sheet not full width: ${JSON.stringify(g)}`);
+      if (g.left !== 0 || g.right !== 0 || g.bottom !== 0) throw new Error(`sheet not flush and full width: ${JSON.stringify(g)}`);
       const x = await p.locator(`${S} .navbar .left [aria-label=Close]`).boundingBox();
       if (!x || x.x > g.iw / 4) throw new Error("no Close button on the left of the sheet's navbar");
       if (await p.locator(`${S} .navbar :text('Done')`).count()) throw new Error("the sheet still has Done");
@@ -670,12 +693,9 @@ const cases = {
       await p.locator(CARDS).filter({ hasText: "Laptop" }).locator("[aria-label=Schedules]").click();
       const F = ".zw-sched-form.modal-in";
       await p.waitForSelector(`${F} #s-time`);
-      await p.waitForTimeout(700);
+      await stable(p, F);
       const f = await gaps(F);
-      const top = await p.evaluate(() => parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--f7-safe-area-top")) || 0);
-      if (theme === "ios") {
-        if (f.left < 6 || f.right < 6 || f.bottom < 6 || f.top < 6 + top) throw new Error(`iOS form not inset: ${JSON.stringify(f)}, safe top ${top}`);
-      } else if (f.left !== 0 || f.right !== 0 || f.bottom !== 0 || f.top !== 0) throw new Error(`Material form not full screen: ${JSON.stringify(f)}`);
+      if (f.left !== 0 || f.right !== 0 || f.bottom !== 0 || f.top !== 0) throw new Error(`form not flush and full screen: ${JSON.stringify(f)}`);
       await p.click(`${F} .navbar .left a`);
       await p.waitForFunction(() => !document.querySelector(".zw-sched-form.modal-in"), null, { timeout: SETTLE });
     } finally {
@@ -760,7 +780,7 @@ async function openTomorrow(p) {
   const i = await p.evaluate((sel) => [...document.querySelectorAll(sel + " .zw-strip .zw-day")].findIndex((d) => d.classList.contains("today")), SCHED);
   if (i === 6) {
     await p.click(`${SCHED} .zw-strip [aria-label='Next week']`);
-    await p.waitForTimeout(400);
+    await p.waitForSelector(`${SCHED} .zw-strip .zw-day.today`, { state: "detached" });
   }
   await p.click(`${SCHED} .zw-strip .zw-day >> nth=${(i + 1) % 7}`);
   await p.waitForSelector(`${SCHED} .segmented button[aria-checked=true]:has-text('Day')`);
@@ -774,16 +794,16 @@ function addDay(d, n) {
 async function openMachine(p) {
   await p.click(`${CARDS} a.item-link >> nth=0`);
   await p.waitForSelector(`${CUR}[data-name=machine]`);
-  await p.waitForTimeout(500); // let the push transition finish
+  await settled(p); // the push transition
 }
 async function openPairing(p) {
   await p.click(`${CUR} >> text=Agent install command`);
   await p.waitForSelector(`${CUR}[data-name=pair]`);
-  await p.waitForTimeout(500);
+  await settled(p);
 }
 async function back(p) {
   await p.click(BACK);
-  await p.waitForTimeout(450);
+  await settled(p);
 }
 // Runs `fn` with the schedule timezone set to `zone` (null clears it), then restores the saved one.
 async function withTimezone(p, zone, fn) {
@@ -805,21 +825,28 @@ async function withTimezone(p, zone, fn) {
 async function searchZone(p, scope, q) {
   const input = p.locator(`${scope} .searchbar input`);
   await input.waitFor();
-  await p.waitForTimeout(500);
+  await p.waitForTimeout(500); // F7's 400 ms iOS searchbar enable delay
+  const n = await p.locator(`${scope} .zw-zones li`).count();
   await input.fill(q);
-  await p.waitForTimeout(600);
+  // the list filters down (an unchanged count just times out into the callers' own checks)
+  await p.waitForFunction(([sel, n]) => document.querySelectorAll(sel).length < n, [`${scope} .zw-zones li`, n], { timeout: 1500 }).catch(() => {});
+  await frames(p, 3);
 }
 async function tab(p, label) {
   await p.click(`.toolbar .tab-link:has-text('${label}')`);
-  await p.waitForTimeout(300);
+  await p.waitForSelector(`.toolbar .tab-link.tab-link-active:has-text('${label}')`);
+  await frames(p, 3);
 }
 
 const browser = await chromium.launch();
-let failures = 0;
-for (const [theme, device] of [["md", "Pixel 7"], ["ios", "iPhone 15"]]) {
+let failures = 0, ran = 0;
+const THEMES = [["md", "Pixel 7"], ["ios", "iPhone 15"]].filter(([t]) => !themeArg || t === themeArg);
+for (const [theme, device] of THEMES) {
   for (const [name, c] of Object.entries(cases)) {
-    const { run, only, context } = typeof c === "function" ? { run: c } : c;
-    if (only && only !== theme) continue;
+    const { run, only: onlyTheme, context } = typeof c === "function" ? { run: c } : c;
+    if (onlyTheme && onlyTheme !== theme) continue;
+    if (only && !only.test(name)) continue;
+    ran++;
     const ctx = await browser.newContext({ ...devices[device], ...context });
     await ctx.addInitScript((t) => localStorage.setItem("zw-theme", t), theme);
     await ctx.addInitScript(noPoll);
@@ -862,8 +889,10 @@ async function largeTitleTop(theme, standalone) {
     await ctx.close();
   }
 }
-for (const theme of ["ios", "md"]) {
+for (const theme of THEMES.map(([t]) => t)) {
   const label = `[${theme}] iPhone home-screen app: title clear of the status-bar blur`;
+  if (only && !only.test(label)) continue;
+  ran++;
   try {
     const shift = (await largeTitleTop(theme, true)) - (await largeTitleTop(theme, false));
     if (Math.abs(shift - 16) > 1) throw new Error(`title moved ${shift}px down in the home-screen app, want 16`);
@@ -874,5 +903,6 @@ for (const theme of ["ios", "md"]) {
   }
 }
 await browser.close();
+if (!ran) { console.error("no UI regression case matched" + (only ? ` UI_ONLY=${only}` : "")); process.exit(2); }
 if (failures) { console.error(`${failures} UI regression case(s) failed`); process.exit(1); }
 console.log("all UI regression cases passed");
