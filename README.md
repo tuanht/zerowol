@@ -107,6 +107,31 @@ curl -s -X POST $BASE/machines/<id>/reboot
 
 Status looks like `{"online":true,"agent":"paired","hostname":"pc","uptime":1234}`. If the PC's clock is out of sync with the NAS, power off fails with the agent's reason (for example `clock skew 45s`) as a `502` error. `/shutdown` is kept as an alias for `/poweroff`.
 
+### Schedules
+
+Rules turn a machine on, reboot it or power it off at a wall-clock time. They need a timezone: set one in the UI settings, via the API, or by running the container with a real `TZ` (not `UTC`). Without any timezone, creating a rule returns `409 timezone not set` and nothing fires.
+
+```sh
+curl -s $BASE/settings                                    # {"timezone":null,"source":null}
+curl -s -X PATCH $BASE/settings -H 'content-type: application/json' -d '{"timezone":"Europe/Berlin"}'
+
+# daily wake at 08:00 (repeat: once+date, daily, weekdays, weekends, weekly+days)
+curl -s -X POST $BASE/schedules -H 'content-type: application/json' \
+  -d '{"machine_id":"<id>","action":"wake","time":"08:00","repeat":{"kind":"daily"}}'
+curl -s -X POST $BASE/schedules -H 'content-type: application/json' \
+  -d '{"machine_id":"<id>","action":"poweroff","time":"23:30","repeat":{"kind":"weekly","days":["mon","fri"]}}'
+curl -s $BASE/schedules
+
+# what happens in a date range (at most 62 days), including skips and outcomes
+curl -s "$BASE/schedules/occurrences?from=2027-03-01&to=2027-03-31"
+
+# skip one date, and undo it
+curl -s -X POST $BASE/schedules/<sid>/skip -H 'content-type: application/json' -d '{"date":"2027-03-05"}'
+curl -s -X DELETE $BASE/schedules/<sid>/skip/2027-03-05
+```
+
+Times are `HH:MM` and dates `YYYY-MM-DD`, always in the schedule timezone; changing the timezone keeps each rule's wall time. A wall time that does not exist (DST gap) fires at the first valid instant after it, and one that occurs twice fires once, at the earlier instant. Reboot and power off need the agent. A one-off rule must lie in the future. A rule that fires within 2 minutes of its time counts; if zerowol was down or busy longer, that occurrence is logged `missed` and is not caught up later (at startup only the last 7 days are examined). Removing a machine's agent disables its reboot and power off rules; deleting a machine deletes its rules.
+
 ### Tokens
 
 Create tokens in the UI settings (Settings, API Tokens), or via the API. The `curl` example below works only in the default open mode; with `ZEROWOL_REQUIRE_TOKEN=true` create tokens from the web UI.

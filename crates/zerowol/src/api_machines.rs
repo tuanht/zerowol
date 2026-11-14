@@ -37,12 +37,14 @@ pub struct MachineView {
     wol_port: u16,
     probe_port: u16,
     agent: Option<AgentView>,
+    /// Number of enabled schedules for this machine.
+    schedules: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     status: Option<Status>,
 }
 
 impl MachineView {
-    fn new(m: &Machine, status: Option<Status>) -> Self {
+    fn new(m: &Machine, status: Option<Status>, schedules: usize) -> Self {
         MachineView {
             id: m.id.clone(),
             name: m.name.clone(),
@@ -52,6 +54,7 @@ impl MachineView {
             wol_port: m.wol_port,
             probe_port: m.probe_port,
             agent: m.agent.as_ref().map(|a| AgentView { port: a.port }),
+            schedules,
             status,
         }
     }
@@ -116,8 +119,15 @@ fn valid_port(v: &Option<serde_json::Value>, what: &str) -> ApiResult<Option<u16
     }
 }
 
-fn log(action: &str, machine: &str, source: &Source, result: &str) {
+pub(crate) fn log(action: &str, machine: &str, source: &Source, result: &str) {
     tracing::info!("action={action} machine={machine} source={source} result={result}");
+}
+
+fn enabled_count(st: &crate::model::State, machine_id: &str) -> usize {
+    st.schedules
+        .iter()
+        .filter(|s| s.enabled && s.machine_id == machine_id)
+        .count()
 }
 
 fn find(state: &AppState, id: &str) -> ApiResult<Machine> {
@@ -131,12 +141,13 @@ fn find(state: &AppState, id: &str) -> ApiResult<Machine> {
 }
 
 pub async fn list(State(state): State<AppState>) -> Json<Vec<MachineView>> {
-    let ms = state.store.snapshot().machines;
-    let sts = status::all_statuses(&ms).await;
+    let snap = state.store.snapshot();
+    let sts = status::all_statuses(&snap.machines).await;
     Json(
-        ms.iter()
+        snap.machines
+            .iter()
             .zip(sts)
-            .map(|(m, s)| MachineView::new(m, Some(s)))
+            .map(|(m, s)| MachineView::new(m, Some(s), enabled_count(&snap, &m.id)))
             .collect(),
     )
 }
@@ -181,7 +192,7 @@ pub async fn create(
         Ok::<_, ApiError>(m)
     })?;
     log("create", &m.name, &source, "ok");
-    Ok((StatusCode::CREATED, Json(MachineView::new(&m, None))).into_response())
+    Ok((StatusCode::CREATED, Json(MachineView::new(&m, None, 0))).into_response())
 }
 
 pub async fn patch(
@@ -204,7 +215,7 @@ pub async fn patch(
         .transpose()?;
     let wol_port = valid_port(&b.wol_port, "invalid wol_port")?;
     let probe_port = valid_port(&b.probe_port, "invalid probe_port")?;
-    let m = state.store.update(|st| {
+    let (m, count) = state.store.update(|st| {
         if let Some(mac) = &mac
             && st.machines.iter().any(|m| m.id != id && &m.mac == mac)
         {
@@ -243,10 +254,20 @@ pub async fn patch(
             }
             _ => {}
         }
-        Ok::<_, ApiError>(m.clone())
+        let m = m.clone();
+        if m.agent.is_none() {
+            // Power actions need the agent: turn those rules off.
+            for s in st.schedules.iter_mut().filter(|s| {
+                s.machine_id == m.id && !matches!(s.action, crate::model::SchedAction::Wake)
+            }) {
+                s.enabled = false;
+            }
+        }
+        let count = enabled_count(st, &m.id);
+        Ok::<_, ApiError>((m, count))
     })?;
     log("update", &m.name, &source, "ok");
-    Ok(Json(MachineView::new(&m, None)))
+    Ok(Json(MachineView::new(&m, None, count)))
 }
 
 pub async fn delete(
@@ -260,7 +281,16 @@ pub async fn delete(
             .iter()
             .position(|m| m.id == id)
             .ok_or_else(not_found)?;
-        Ok::<_, ApiError>(st.machines.remove(i).name)
+        let name = st.machines.remove(i).name;
+        let gone: Vec<String> = st
+            .schedules
+            .iter()
+            .filter(|s| s.machine_id == id)
+            .map(|s| s.id.clone())
+            .collect();
+        st.schedules.retain(|s| s.machine_id != id);
+        st.schedule_log.retain(|e| !gone.contains(&e.schedule_id));
+        Ok::<_, ApiError>(name)
     })?;
     state
         .limiter

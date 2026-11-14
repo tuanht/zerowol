@@ -1,6 +1,6 @@
 use crate::config::Config;
 use crate::store::{Store, StoreError};
-use crate::{api_machines, api_tokens, assets, auth, install};
+use crate::{api_machines, api_schedules, api_settings, api_tokens, assets, auth, install};
 use axum::Json;
 use axum::Router;
 use axum::http::StatusCode;
@@ -61,6 +61,21 @@ pub fn router(state: AppState) -> Router {
             "/machines/{id}/agent/install-command",
             get(api_machines::install_command),
         )
+        .route(
+            "/settings",
+            get(api_settings::get).patch(api_settings::patch),
+        )
+        .route(
+            "/schedules",
+            get(api_schedules::list).post(api_schedules::create),
+        )
+        .route("/schedules/occurrences", get(api_schedules::occurrences))
+        .route(
+            "/schedules/{id}",
+            patch(api_schedules::patch).delete(api_schedules::delete),
+        )
+        .route("/schedules/{id}/skip", post(api_schedules::skip))
+        .route("/schedules/{id}/skip/{date}", delete(api_schedules::unskip))
         .route("/tokens", get(api_tokens::list).post(api_tokens::create))
         .route("/tokens/{id}", delete(api_tokens::delete))
         .fallback(api_not_found)
