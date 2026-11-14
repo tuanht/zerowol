@@ -81,6 +81,95 @@ pub fn push_log(log: &mut Vec<LogEntry>, e: LogEntry) {
     }
 }
 
+/// One occurrence of a rule on a local date.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Occ {
+    pub date: jiff::civil::Date,
+    pub at: jiff::Timestamp,
+    pub skipped: bool,
+}
+
+/// Wall time on a date to an instant. A wall time in a DST gap resolves to the
+/// transition itself (the first valid instant after it); a repeated wall time
+/// resolves to the earlier instant.
+pub fn instant(
+    tz: &jiff::tz::TimeZone,
+    date: jiff::civil::Date,
+    time: jiff::civil::Time,
+) -> jiff::Timestamp {
+    use jiff::tz::AmbiguousOffset;
+    let dt = date.to_datetime(time);
+    let amb = tz.to_ambiguous_timestamp(dt);
+    match amb.offset() {
+        AmbiguousOffset::Unambiguous { .. } => amb.unambiguous().expect("unambiguous"),
+        // Both offsets are valid for a fold; `before` is the earlier instant.
+        AmbiguousOffset::Fold { before, .. } => before
+            .to_timestamp(dt)
+            .unwrap_or_else(|_| amb.compatible().expect("fold")),
+        AmbiguousOffset::Gap { after, .. } => {
+            // The `after` offset is larger, so it yields an instant just before
+            // the transition; the next transition is the one we want.
+            match after.to_timestamp(dt) {
+                Ok(ts) => tz.following(ts).next().map(|t| t.timestamp()).unwrap_or(ts),
+                Err(_) => amb.compatible().expect("gap"),
+            }
+        }
+    }
+}
+
+fn weekday_of(d: jiff::civil::Date) -> crate::model::Weekday {
+    use crate::model::Weekday as W;
+    use jiff::civil::Weekday as J;
+    match d.weekday() {
+        J::Monday => W::Mon,
+        J::Tuesday => W::Tue,
+        J::Wednesday => W::Wed,
+        J::Thursday => W::Thu,
+        J::Friday => W::Fri,
+        J::Saturday => W::Sat,
+        J::Sunday => W::Sun,
+    }
+}
+
+/// All occurrences of `s` on local dates in `[from, to]` (inclusive), ignoring
+/// `enabled`. An unparseable time or once-date yields none.
+pub fn expand(
+    s: &crate::model::Schedule,
+    tz: &jiff::tz::TimeZone,
+    from: jiff::civil::Date,
+    to: jiff::civil::Date,
+) -> Vec<Occ> {
+    use crate::model::{Repeat, Weekday as W};
+    let Some(time) = parse_time(&s.time) else {
+        return Vec::new();
+    };
+    let skips: Vec<jiff::civil::Date> = s.skip.iter().filter_map(|d| parse_date(d)).collect();
+    let mut out = Vec::new();
+    let mut d = from;
+    while d <= to {
+        let wd = weekday_of(d);
+        let hit = match &s.repeat {
+            Repeat::Once { date } => parse_date(date) == Some(d),
+            Repeat::Daily => true,
+            Repeat::Weekdays => !matches!(wd, W::Sat | W::Sun),
+            Repeat::Weekends => matches!(wd, W::Sat | W::Sun),
+            Repeat::Weekly { days } => days.contains(&wd),
+        };
+        if hit {
+            out.push(Occ {
+                date: d,
+                at: instant(tz, d, time),
+                skipped: skips.contains(&d),
+            });
+        }
+        match d.tomorrow() {
+            Ok(n) => d = n,
+            Err(_) => break,
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -183,5 +272,156 @@ mod tests {
         assert_eq!(log.len(), LOG_CAP);
         assert_eq!(log[0].at, 1);
         assert_eq!(log.last().unwrap().at, LOG_CAP as u64);
+    }
+
+    fn sch(time: &str, repeat: crate::model::Repeat, skip: &[&str]) -> crate::model::Schedule {
+        crate::model::Schedule {
+            id: "s".into(),
+            machine_id: "m".into(),
+            action: crate::model::SchedAction::Wake,
+            time: time.into(),
+            repeat,
+            enabled: true,
+            skip: skip.iter().map(|s| s.to_string()).collect(),
+            created: 0,
+        }
+    }
+    fn d(s: &str) -> jiff::civil::Date {
+        parse_date(s).unwrap()
+    }
+    fn ts(s: &str) -> jiff::Timestamp {
+        s.parse().unwrap()
+    }
+    fn week(s: &crate::model::Schedule, tz: &str) -> Vec<Occ> {
+        expand(s, &zone(tz).unwrap(), d("2026-11-09"), d("2026-11-15"))
+    }
+
+    #[test]
+    fn daily_over_week() {
+        use crate::model::Repeat;
+        let o = week(&sch("08:00", Repeat::Daily, &[]), "Asia/Ho_Chi_Minh");
+        assert_eq!(o.len(), 7);
+        assert_eq!(o[0].at, ts("2026-11-09T01:00:00Z"));
+    }
+
+    #[test]
+    fn weekdays_and_weekends() {
+        use crate::model::Repeat;
+        assert_eq!(
+            week(&sch("08:00", Repeat::Weekdays, &[]), "Asia/Ho_Chi_Minh").len(),
+            5
+        );
+        let e = week(&sch("08:00", Repeat::Weekends, &[]), "Asia/Ho_Chi_Minh");
+        assert_eq!(
+            e.iter().map(|o| o.date).collect::<Vec<_>>(),
+            [d("2026-11-14"), d("2026-11-15")]
+        );
+    }
+
+    #[test]
+    fn weekly_days() {
+        use crate::model::{Repeat, Weekday};
+        let r = Repeat::Weekly {
+            days: vec![Weekday::Tue, Weekday::Thu],
+        };
+        let o = week(&sch("08:00", r, &[]), "Asia/Ho_Chi_Minh");
+        assert_eq!(
+            o.iter().map(|o| o.date).collect::<Vec<_>>(),
+            [d("2026-11-10"), d("2026-11-12")]
+        );
+    }
+
+    #[test]
+    fn once_in_and_out_of_range() {
+        use crate::model::Repeat;
+        let s = sch(
+            "08:00",
+            Repeat::Once {
+                date: "2026-11-12".into(),
+            },
+            &[],
+        );
+        let tz = zone("Asia/Ho_Chi_Minh").unwrap();
+        assert_eq!(expand(&s, &tz, d("2026-11-09"), d("2026-11-15")).len(), 1);
+        assert_eq!(expand(&s, &tz, d("2026-11-13"), d("2026-11-15")).len(), 0);
+    }
+
+    #[test]
+    fn skip_marks_occurrence() {
+        use crate::model::Repeat;
+        let o = week(
+            &sch("08:00", Repeat::Daily, &["2026-11-11"]),
+            "Asia/Ho_Chi_Minh",
+        );
+        for x in &o {
+            assert_eq!(x.skipped, x.date == d("2026-11-11"));
+        }
+    }
+
+    #[test]
+    fn bad_time_yields_none() {
+        use crate::model::Repeat;
+        assert!(week(&sch("8:00", Repeat::Daily, &[]), "Europe/Berlin").is_empty());
+    }
+
+    #[test]
+    fn dst_gap_berlin() {
+        use crate::model::Repeat;
+        let tz = zone("Europe/Berlin").unwrap();
+        let o = expand(
+            &sch("02:30", Repeat::Daily, &[]),
+            &tz,
+            d("2027-03-28"),
+            d("2027-03-28"),
+        );
+        assert_eq!(o.len(), 1);
+        assert_eq!(o[0].at, ts("2027-03-28T01:00:00Z"));
+    }
+
+    #[test]
+    fn dst_fold_berlin() {
+        use crate::model::Repeat;
+        let tz = zone("Europe/Berlin").unwrap();
+        let o = expand(
+            &sch("02:30", Repeat::Daily, &[]),
+            &tz,
+            d("2027-10-31"),
+            d("2027-10-31"),
+        );
+        assert_eq!(o.len(), 1);
+        assert_eq!(o[0].at, ts("2027-10-31T00:30:00Z"));
+    }
+
+    #[test]
+    fn range_across_dst_keeps_wall_time() {
+        use crate::model::Repeat;
+        let tz = zone("Europe/Berlin").unwrap();
+        let o = expand(
+            &sch("07:30", Repeat::Daily, &[]),
+            &tz,
+            d("2027-03-01"),
+            d("2027-03-31"),
+        );
+        assert_eq!(o.len(), 31);
+        for x in &o {
+            let z = x.at.to_zoned(tz.clone());
+            assert_eq!((z.date(), z.hour(), z.minute()), (x.date, 7, 30));
+        }
+    }
+
+    #[test]
+    fn tz_change_keeps_wall_time() {
+        use crate::model::Repeat;
+        let s = sch("07:30", Repeat::Daily, &[]);
+        let a = week(&s, "Asia/Ho_Chi_Minh");
+        let b = week(&s, "Europe/Berlin");
+        for (o, name) in [(&a, "Asia/Ho_Chi_Minh"), (&b, "Europe/Berlin")] {
+            let tz = zone(name).unwrap();
+            for x in o {
+                let z = x.at.to_zoned(tz.clone());
+                assert_eq!((z.hour(), z.minute()), (7, 30));
+            }
+        }
+        assert_ne!(a[0].at, b[0].at);
     }
 }
