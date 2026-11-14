@@ -1,7 +1,7 @@
 <script setup>
 import { ACTION, REPEAT } from "../lib/words.js";
 import { repeatLabel, schedState } from "../lib/schedules.js";
-import { outcomeText } from "../lib/occurrences.js";
+import { isOff, outcomeText } from "../lib/occurrences.js";
 
 const props = defineProps({
   occurrences: { type: Array, required: true },
@@ -13,8 +13,7 @@ const repeatOf = (o) => {
   const s = schedState.list.find((x) => x.id === o.schedule_id);
   return s ? repeatLabel(s.repeat) : REPEAT[o.repeat_kind] || o.repeat_kind;
 };
-// Greyed when the rule is off, except an occurrence that already ran (a once rule switches itself off after firing).
-const off = (o) => !o.enabled && !(o.outcome && o.at <= props.now);
+const off = (o) => isOff(o, props.now);
 const bad = (o) => /^(failed|missed)/.test(outcomeText(o, props.now));
 </script>
 

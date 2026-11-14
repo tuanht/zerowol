@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { addDays, fmtDay, fmtLong, monthGrid, weekDays, weekStart } from "../lib/dates.js";
+import { addDays, addMonths, fmtDay, fmtLong, monthGrid, weekDays, weekStart } from "../lib/dates.js";
 
 describe("dates", () => {
   it("weekStart is monday", () => {
@@ -33,6 +33,14 @@ describe("dates", () => {
       if (tz === undefined) delete process.env.TZ;
       else process.env.TZ = tz;
     }
+  });
+  it("addMonths keeps the day, clamped to the month's end", () => {
+    expect(addMonths("2026-11-13", 1)).toBe("2026-12-13");
+    expect(addMonths("2026-12-31", 1)).toBe("2027-01-31");
+    expect(addMonths("2027-01-31", 1)).toBe("2027-02-28");
+    expect(addMonths("2027-03-31", -1)).toBe("2027-02-28");
+    expect(addMonths("2028-03-30", -1)).toBe("2028-02-29");
+    expect(addMonths("2027-01-15", -13)).toBe("2025-12-15");
   });
   it("formats days", () => {
     expect(fmtDay("2026-11-13")).toBe("Fri 13"); // 2026-11-15 is a Sunday

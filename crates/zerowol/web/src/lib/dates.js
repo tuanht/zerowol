@@ -22,6 +22,12 @@ export function addDays(d, n) {
   t.setUTCDate(t.getUTCDate() + n);
   return fromUTC(t);
 }
+// The same day n months on, clamped to that month's last day (31 Jan + 1 → 28/29 Feb).
+export function addMonths(d, n) {
+  const [y, m, dd] = d.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m - 1 + n + 1, 0)).getUTCDate();
+  return fromUTC(new Date(Date.UTC(y, m - 1 + n, Math.min(dd, last))));
+}
 export const weekStart = (d) => addDays(d, -dow(d));
 export const weekDays = (d) => Array.from({ length: 7 }, (_, i) => addDays(weekStart(d), i));
 // Monday-start, 6 rows, from the week holding the 1st of d's month.

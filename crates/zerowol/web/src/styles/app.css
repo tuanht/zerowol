@@ -78,6 +78,48 @@
 /* one small dot per action colour under the number (fixed height so days with and without dots line up) */
 .zw-dots{display:flex;gap:3px;height:6px}
 .zw-dots .dot{width:6px;height:6px}
+/* ---- wide Schedules views (Week grid, Month grid): Framework7 has no calendar grid, so these are our own elements ---- */
+/* bar above the grids: ‹ › arrows, the range title, and the view segmented control pushed to the end */
+.zw-bar{display:flex;align-items:center;gap:4px;margin-bottom:8px}
+/* range title: our own span, sized with Framework7's medium block-title tokens */
+.zw-bar-title{flex:1;min-width:0;margin-left:8px;font-size:var(--f7-block-title-medium-font-size);font-weight:var(--f7-block-title-medium-font-weight);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* the segmented control's own box: fixed width, else in a flex row it stretches to the whole bar */
+.zw-bar-seg{flex:none;width:240px}
+/* chips: our own coloured buttons/spans (machine · action), same colours as the pills; one line, ellipsis */
+.zw-chip{appearance:none;border:0;margin:0;font:inherit;display:block;width:100%;box-sizing:border-box;text-align:left;padding:2px 6px;border-radius:6px;font-size:12px;font-weight:600;line-height:16px;color:#fff;background:var(--zw-green);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.zw-chip.reboot{background:var(--zw-amber)}
+.zw-chip.poweroff{background:var(--zw-red)}
+.zw-chip.off{background:var(--zw-grey)}
+/* week grid: an hour-label column + 7 equal day columns; rows are only the hours that hold occurrences */
+.zw-wgrid{display:grid;grid-template-columns:56px repeat(7,minmax(0,1fr))}
+/* day header: weekday + date, today in the theme colour (calendar convention) */
+.zw-whead{padding:4px;font-size:13px;font-weight:600;text-align:center}
+.zw-whead.today{color:var(--f7-theme-color)}
+/* hour label and cells, separated by Framework7's list hairline colour */
+.zw-whour{padding:6px 8px 0 0;font-size:12px;text-align:right;opacity:.6;border-top:1px solid var(--f7-list-item-border-color)}
+.zw-wcell{min-height:34px;padding:4px;display:flex;flex-direction:column;gap:3px;border-top:1px solid var(--f7-list-item-border-color);border-left:1px solid var(--f7-list-item-border-color)}
+/* today's column: a faint theme-colour tint */
+.zw-wcell.today{background:rgba(var(--f7-theme-color-rgb),.07)}
+/* the compressed "…" row standing for a run of empty hours: spans all columns, short */
+.zw-wgap{grid-column:1/-1;font-size:12px;line-height:16px;text-align:center;opacity:.5;border-top:1px solid var(--f7-list-item-border-color)}
+/* month grid: 7 equal columns; the cells' fixed height keeps the 6 week rows equal and inside a 1280×800 window */
+.zw-mgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.zw-mhead{padding-bottom:4px;font-size:12px;text-align:center;opacity:.6}
+/* a day cell is our own <button>: drop the browser's button box, stack number / dots / chips */
+.zw-mcell{appearance:none;background:none;border:0;border-top:1px solid var(--f7-list-item-border-color);margin:0;padding:4px 6px;font:inherit;color:inherit;height:72px;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:2px;overflow:hidden;text-align:left;cursor:pointer}
+/* the cell's first line: day number, the repeating rules' dots, and "+N" at the end */
+.zw-mtop{display:flex;align-items:center;gap:6px}
+/* once-rule chips keep their height (in the fixed-height column they would otherwise be squashed) */
+.zw-mcell .zw-chip{flex:none;line-height:14px;padding:1px 6px}
+/* days of the neighbouring months are dimmed (the contents only, so the row's hairline stays even) */
+.zw-mcell.out>*{opacity:.4}
+/* day number in a circle, filled with the theme colour for today (as the week strip's selected day) */
+.zw-mnum{width:22px;height:22px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px}
+.zw-mcell.today .zw-mnum{background:var(--f7-theme-color);color:var(--f7-md-on-primary,#fff);font-weight:600}
+/* "+N" once-rule chips that don't fit */
+.zw-more{margin-left:auto;font-size:11px;opacity:.6}
+/* the day popover: our own popover instance gets a wider Framework7 popover width so "HH:MM · machine" fits */
+.zw-day-pop{--f7-popover-width:320px}
 /* machine schedule sheet: auto height (F7 sheet), but our list scrolls once it gets long */
 .zw-sheet-body{max-height:70vh;overflow-y:auto;max-width:672px;margin:0 auto}
 

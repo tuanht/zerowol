@@ -1,9 +1,9 @@
 import { f7 } from "framework7-vue";
 import { esc, offlineMsg } from "./api.js";
-import { IOS } from "./layout.js";
+import { IOS, wide } from "./layout.js";
 import { confirmDialog, toast } from "./ui.js";
-import { ACTION } from "./words.js";
-import { deleteSchedule, openScheduleForm, reloadSchedules, schedState, skip, unskip } from "./schedules.js";
+import { ACTION, REPEAT } from "./words.js";
+import { deleteSchedule, openScheduleForm, reloadSchedules, repeatLabel, schedState, skip, unskip } from "./schedules.js";
 
 // Runs an API call; on success bumps schedState.rev so the Schedules page reloads (rules and occurrences).
 async function run(call) {
@@ -35,6 +35,9 @@ async function editRule(id) {
   return openScheduleForm({ schedule: s });
 }
 
+// Greyed when the rule is off, except an occurrence that already ran (a once rule switches itself off after firing).
+export const isOff = (o, now) => !o.enabled && !(o.outcome && o.at <= now);
+
 // Past / skipped status of an occurrence for its agenda row ("" for an upcoming one).
 export function outcomeText(o, now) {
   if (o.skipped) return "skipped";
@@ -47,7 +50,8 @@ export function outcomeText(o, now) {
 }
 
 // Tapping an occurrence: a once rule opens its form; a repeating one gets an action sheet
-// (iOS) / bottom sheet (Material). Resolves true when something changed.
+// (iOS) / bottom sheet (Material) on phones, a popover beside targetEl on wide screens.
+// Resolves true when something changed.
 export function openOccurrenceActions(occ, targetEl) {
   if (occ.repeat_kind === "once") return editRule(occ.schedule_id);
   return new Promise((resolve) => {
@@ -71,15 +75,53 @@ export function openOccurrenceActions(occ, targetEl) {
         },
       ],
     ];
-    if (IOS) groups.push([{ text: "Cancel", strong: true }]);
+    // Only on wide screens: Framework7 would also convert on any desktop browser, whatever its width.
+    const popover = wide.value && !!targetEl;
+    // A popover closes on a tap outside it, so only the iOS action sheet gets a Cancel button.
+    if (IOS && !popover) groups.push([{ text: "Cancel", strong: true }]);
     const sheet = f7.actions.create({
       buttons: groups,
-      // A popover beside the row on wide screens, once the Popover component is registered (Task 7).
-      convertToPopover: !!f7.popover,
+      convertToPopover: popover,
       targetEl,
       destroyOnClose: true,
       on: { closed: () => resolve(picked ? picked() : false) },
     });
     sheet.open();
   });
+}
+
+// Month view: a date's agenda in a popover beside its cell (wide screens only). Tapping an item closes
+// the popover, then opens that occurrence's actions anchored to the same cell.
+export function openDayPopover(title, items, cellEl, now) {
+  const row = (o, i) => {
+    const t = esc(o.time + " · " + o.machine_name);
+    const off = isOff(o, now);
+    const rule = schedState.list.find((x) => x.id === o.schedule_id);
+    const foot = [rule ? repeatLabel(rule.repeat) : REPEAT[o.repeat_kind] || o.repeat_kind, off && "off", outcomeText(o, now)].filter(Boolean).join(" · ");
+    return `<li><a class="item-link item-content" href="#" data-i="${i}"><div class="item-inner"><div class="item-title">${
+      o.skipped ? `<s>${t}</s>` : off ? `<span class="zw-off">${t}</span>` : t
+    }<div class="item-footer">${esc(foot)}</div></div><div class="item-after"><span class="zw-pill ${off ? "off" : o.action}">${
+      ACTION[o.action]
+    }</span></div></div></a></li>`;
+  };
+  const empty = '<li class="item-content"><div class="item-inner"><div class="item-title"><span class="zw-off">Nothing scheduled</span></div></div></li>';
+  let picked = null;
+  const pop = f7.popover.create({
+    targetEl: cellEl,
+    content: `<div class="popover zw-day-pop"><div class="popover-inner"><div class="block-title">${esc(title)}</div><div class="list list-dividers-ios"><ul>${
+      items.length ? items.map(row).join("") : empty
+    }</ul></div></div></div>`,
+    on: {
+      closed: () => {
+        setTimeout(() => pop.destroy());
+        if (picked) openOccurrenceActions(picked, cellEl);
+      },
+    },
+  });
+  pop.$el.on("click", ".item-link", (e) => {
+    e.preventDefault();
+    picked = items[+e.target.closest(".item-link").dataset.i];
+    pop.close();
+  });
+  pop.open();
 }

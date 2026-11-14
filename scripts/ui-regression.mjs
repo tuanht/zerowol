@@ -251,6 +251,99 @@ const cases = {
     await p.waitForSelector(`${S} .segmented button.button-active:has-text('Day')`);
     await tab(p, "Machines");
   },
+  "schedules wide: week grid fits, month grid, popovers, breakpoint keeps the date": async (p) => {
+    const S = "#view-schedules .page-current[data-name=schedules]";
+    // Fixed occurrences: 8 distinct hours every day (3 of them once rules on the 10th), so the layout is measured at its limit.
+    const HOURS = ["00", "02", "05", "07", "08", "12", "18", "23"];
+    const ACTS = ["wake", "reboot", "poweroff"];
+    await p.route("**/api/v1/schedules/occurrences?**", (route) => {
+      const u = new URL(route.request().url());
+      const out = [];
+      for (let d = u.searchParams.get("from"); d <= u.searchParams.get("to"); ) {
+        HOURS.forEach((h, i) => {
+          const once = d.endsWith("-10") && i < 3;
+          out.push({ schedule_id: (once ? "o" : "r") + i, machine_id: "dev-ws", machine_name: "Workstation", action: ACTS[i % 3],
+            repeat_kind: once ? "once" : "daily", date: d, time: h + ":30", at: 0, skipped: false, enabled: true, outcome: null });
+        });
+        const t = new Date(d + "T00:00:00Z");
+        t.setUTCDate(t.getUTCDate() + 1);
+        d = t.toISOString().slice(0, 10);
+      }
+      return route.fulfill({ json: out });
+    });
+    const vp = p.viewportSize();
+    try {
+      await tab(p, "Schedules");
+      await p.waitForSelector(`${S} .zw-strip, ${S} button:has-text('Use ')`);
+      if (await p.locator(`${S} button:has-text('Use ')`).count()) {
+        await p.click(`${S} button:has-text('Use ')`);
+        await p.waitForSelector(`${S} .zw-strip`);
+      }
+      // Phone: move to next week, then widen: the wide Week grid shows that same week.
+      await p.click(`${S} .zw-strip [aria-label='Next week']`);
+      await p.waitForTimeout(400);
+      const monday = +(await p.locator(`${S} .zw-day .zw-num`).first().innerText());
+      await p.setViewportSize({ width: 1280, height: 800 });
+      await p.waitForSelector(`${S} .zw-wgrid .zw-chip`);
+      await p.waitForTimeout(400);
+      const segs = await p.locator(`${S} .segmented button`).allInnerTexts();
+      if (segs.join("|") !== "Week|Month") throw new Error(`wide views ${segs.join("|")}`);
+      const w = await p.evaluate((sel) => {
+        const pc = document.querySelector(sel + " .page-content"), g = document.querySelector(sel + " .zw-wgrid");
+        const r = g.getBoundingClientRect();
+        return { hours: g.querySelectorAll(".zw-whour").length, heads: [...g.querySelectorAll(".zw-whead")].map((h) => [h.textContent.trim(), h.getBoundingClientRect().width]),
+          bottom: r.bottom, right: r.right, ih: innerHeight, iw: innerWidth, scroll: pc.scrollHeight - pc.clientHeight };
+      }, S);
+      if (w.hours !== 8) throw new Error(`${w.hours} hour rows, want 8`);
+      if (+w.heads[0][0].split(" ")[1] !== monday) throw new Error(`wide week starts ${w.heads[0][0]}, phone week started on the ${monday}th`);
+      const hw = w.heads.map((h) => h[1]);
+      if (Math.max(...hw) - Math.min(...hw) > 1) throw new Error(`unequal day columns ${JSON.stringify(hw)}`);
+      // 8 hours fit a 1280x800 window: no vertical scroll, nothing past the edges.
+      if (w.scroll > 0 || w.bottom > w.ih || w.right > w.iw) throw new Error(`week grid doesn't fit 1280x800 ${JSON.stringify(w)}`);
+      // A repeating chip's actions open as a popover on wide screens.
+      await p.click(`${S} .zw-wgrid .zw-chip >> nth=0`);
+      await p.waitForSelector(".popover.modal-in:has-text('Skip this time')");
+      await p.waitForTimeout(500); // F7 binds its outside-tap close once the popover has opened
+      await p.touchscreen.tap(1270, 790); // outside it; a tap, as F7 pairs touchstart with the click on touch devices
+      await p.waitForSelector(".popover.modal-in", { state: "detached" });
+      await p.click(`${S} .segmented button:has-text('Month')`);
+      await p.waitForSelector(`${S} .zw-mgrid`);
+      await p.waitForTimeout(400);
+      const m = await p.evaluate((sel) => {
+        const pc = document.querySelector(sel + " .page-content");
+        const c = [...document.querySelectorAll(sel + " .zw-mcell")].map((e) => e.getBoundingClientRect());
+        return { n: c.length, w: c.map((r) => r.width), h: c.map((r) => r.height), bottom: Math.max(...c.map((r) => r.bottom)),
+          right: Math.max(...c.map((r) => r.right)), left: Math.min(...c.map((r) => r.left)), ih: innerHeight, iw: innerWidth,
+          scroll: pc.scrollHeight - pc.clientHeight, more: document.querySelector(sel + " .zw-more")?.textContent };
+      }, S);
+      if (m.n !== 42) throw new Error(`${m.n} month cells`);
+      const spread = (a) => Math.max(...a) - Math.min(...a);
+      if (spread(m.w) > 1 || spread(m.h) > 1) throw new Error(`unequal month cells ${JSON.stringify({ w: m.w.slice(0, 7), h: m.h.slice(0, 7) })}`);
+      if (m.left < 0 || m.right > m.iw || m.bottom > m.ih || m.scroll > 0) throw new Error(`month grid outside 1280x800 ${JSON.stringify(m)}`);
+      if (m.more !== "+1") throw new Error(`3 once chips show "${m.more}", want "+1"`);
+      if (await p.evaluate(() => localStorage.getItem("zw-sched-view-wide")) !== "month") throw new Error("wide view not stored");
+      // A day: its agenda in a popover; an item closes it and opens that occurrence's actions.
+      await p.click(`${S} .zw-mcell:not(.out) >> nth=14`);
+      await p.waitForSelector(".popover.modal-in.zw-day-pop");
+      const rows = await p.locator(".zw-day-pop .item-link").count();
+      if (rows !== 8) throw new Error(`day popover has ${rows} rows, want 8`);
+      await p.click(".zw-day-pop .item-link >> nth=1");
+      await p.waitForSelector(".popover.modal-in:has-text('Skip this time')");
+      if (await p.locator(".zw-day-pop").count()) throw new Error("day popover still open under the actions");
+      await p.waitForTimeout(500); // F7 binds its outside-tap close once the popover has opened
+      await p.touchscreen.tap(1270, 790); // outside it; a tap, as F7 pairs touchstart with the click on touch devices
+      await p.waitForSelector(".popover.modal-in", { state: "detached" });
+      // Back to phone size: Day | Week again, the phone choice untouched.
+      await p.setViewportSize(vp);
+      await p.waitForSelector(`${S} .zw-strip`);
+      const phone = await p.locator(`${S} .segmented button`).allInnerTexts();
+      if (phone.join("|") !== "Day|Week") throw new Error(`phone views ${phone.join("|")}`);
+    } finally {
+      await p.setViewportSize(vp);
+      await p.unroute("**/api/v1/schedules/occurrences?**");
+    }
+    await tab(p, "Machines");
+  },
   "no old wording": async (p) => {
     const check = async (where) => {
       const t = await p.evaluate(() => document.body.innerText);
