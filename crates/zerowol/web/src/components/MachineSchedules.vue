@@ -46,7 +46,7 @@ async function openForm(schedule) {
 </script>
 
 <template>
-  <f7-sheet v-model:opened="sheetState.open" class="zw-sched-sheet" swipe-to-close :push="ios" backdrop style="height: auto" @sheet:open="sizeNavbar">
+  <f7-sheet v-model:opened="sheetState.open" class="zw-sched-sheet" swipe-to-close backdrop style="height: auto" @sheet:open="sizeNavbar">
     <f7-navbar :title="machine ? machine.name : ''">
       <template #right><f7-link sheet-close><b v-if="ios">Done</b><template v-else>Done</template></f7-link></template>
     </f7-navbar>

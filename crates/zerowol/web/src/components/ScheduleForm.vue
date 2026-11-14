@@ -150,7 +150,7 @@ const onClosed = () => closeScheduleForm(shownSeq, result);
 </script>
 
 <template>
-  <f7-popup v-model:opened="opened" class="zw-sched-form" swipe-to-close :push="ios" @popup:open="sizeNavbar" @popup:closed="onClosed">
+  <f7-popup v-model:opened="opened" class="zw-sched-form" swipe-to-close @popup:open="sizeNavbar" @popup:closed="onClosed">
     <div class="page">
       <!-- keyed: f7-navbar decides once whether it has a right side, and the timezone step has none -->
       <f7-navbar v-if="!dialog" :key="step" :title="title">
