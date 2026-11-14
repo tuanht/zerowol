@@ -86,10 +86,10 @@ export const browserZone = () => {
     return "UTC";
   }
 };
-// Today's date ("YYYY-MM-DD") in the given zone (browser zone when unset or unknown).
-export function todayIn(zone) {
-  const fmt = (z) =>
-    new Intl.DateTimeFormat("en-US", { timeZone: z, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+// Now in the given zone (browser zone when unset or unknown): { date: "YYYY-MM-DD", min: minutes since midnight }.
+export function clockIn(zone, at = new Date()) {
+  const opts = { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" };
+  const fmt = (z) => new Intl.DateTimeFormat("en-US", { ...opts, timeZone: z }).formatToParts(at);
   let p;
   try {
     p = fmt(zone || undefined);
@@ -97,8 +97,10 @@ export function todayIn(zone) {
     p = fmt(undefined);
   }
   const g = (t) => p.find((x) => x.type === t).value;
-  return g("year") + "-" + g("month") + "-" + g("day");
+  return { date: g("year") + "-" + g("month") + "-" + g("day"), min: +g("hour") * 60 + +g("minute") };
 }
+// Today's date ("YYYY-MM-DD") in the given zone (browser zone when unset or unknown).
+export const todayIn = (zone) => clockIn(zone).date;
 export const weekdayOf = (date) => DAYS[weekday(date)];
 
 // The browser's zone, offered first by the timezone prompts (form step and Schedules page).
@@ -109,17 +111,19 @@ export function zoneChoice() {
 
 // ---------- the shared form popup and machine sheet ----------
 // One <ScheduleForm> and one <MachineSchedules> are mounted in App.vue and driven by this state.
-export const formState = reactive({ open: false, seq: 0, machineId: null, schedule: null, fixed: false });
+export const formState = reactive({ open: false, seq: 0, machineId: null, schedule: null, fixed: false, prefill: null });
 let resolveForm = null;
 
-// Opens the form in add mode (optionally for a machine) or edit mode; resolves true when saved or deleted.
-export function openScheduleForm({ machineId, schedule } = {}) {
+// Opens the form in add mode (optionally for a machine, optionally prefilled, e.g. { kind: "once", date, time })
+// or edit mode; resolves true when saved or deleted.
+export function openScheduleForm({ machineId, schedule, prefill } = {}) {
   if (resolveForm) resolveForm(false);
   Object.assign(formState, {
     open: true,
     seq: formState.seq + 1,
     machineId: machineId || (schedule && schedule.machine_id) || null,
     schedule: schedule || null,
+    prefill: (!schedule && prefill) || null,
     // From a card the machine is given; an existing rule can't move to another machine (PATCH keeps machine_id).
     fixed: !!(machineId || schedule),
   });

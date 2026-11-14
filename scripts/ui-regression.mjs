@@ -245,7 +245,7 @@ const cases = {
     await p.waitForSelector(`${S} .segmented button[aria-checked=true]:has-text('Day')`);
     await tab(p, "Machines");
   },
-  "schedules wide: week grid fits, month grid, popovers, breakpoint keeps the date": async (p) => {
+  "schedules wide: 24-hour week grid, sticky header, month grid, popovers, breakpoint keeps the date": async (p) => {
     const S = "#view-schedules .page-current[data-name=schedules]";
     // Fixed occurrences: 8 distinct hours every day (3 of them once rules on the 10th), so the layout is measured at its limit.
     // All in the future (Skip is offered only ahead of time); the 23:30 rule is switched off (a grey dot / chip).
@@ -286,14 +286,28 @@ const cases = {
         const pc = document.querySelector(sel + " .page-content"), g = document.querySelector(sel + " .zw-wgrid");
         const r = g.getBoundingClientRect();
         return { hours: g.querySelectorAll(".zw-whour").length, heads: [...g.querySelectorAll(".zw-whead")].map((h) => [h.textContent.trim(), h.getBoundingClientRect().width]),
-          bottom: r.bottom, right: r.right, ih: innerHeight, iw: innerWidth, scroll: pc.scrollHeight - pc.clientHeight };
+          right: r.right, iw: innerWidth, wide: pc.scrollWidth - pc.clientWidth };
       }, S);
-      if (w.hours !== 8) throw new Error(`${w.hours} hour rows, want 8`);
+      if (w.hours !== 24) throw new Error(`${w.hours} hour rows, want 24`);
       if (+w.heads[0][0].split(" ")[1] !== monday) throw new Error(`wide week starts ${w.heads[0][0]}, phone week started on the ${monday}th`);
       const hw = w.heads.map((h) => h[1]);
       if (Math.max(...hw) - Math.min(...hw) > 1) throw new Error(`unequal day columns ${JSON.stringify(hw)}`);
-      // 8 hours fit a 1280x800 window: no vertical scroll, nothing past the edges.
-      if (w.scroll > 0 || w.bottom > w.ih || w.right > w.iw) throw new Error(`week grid doesn't fit 1280x800 ${JSON.stringify(w)}`);
+      // Nothing past the right edge.
+      if (w.wide > 0 || w.right > w.iw) throw new Error(`week grid wider than 1280 ${JSON.stringify(w)}`);
+      // Not this week: opened scrolled to its first occurrence's hour (00:30), i.e. at the top.
+      // Scrolled to the bottom, the day header row stays right under the navbar, opaque.
+      const st = await p.evaluate(async (sel) => {
+        const pc = document.querySelector(sel + " .page-content");
+        const top0 = pc.scrollTop;
+        pc.scrollTop = pc.scrollHeight;
+        await new Promise((r) => setTimeout(r, 400));
+        const nb = document.querySelector(sel + " .navbar") || document.querySelector("#view-schedules .navbar");
+        const h = document.querySelector(sel + " .zw-whead");
+        return { top0, head: h.getBoundingClientRect().top, nav: nb.getBoundingClientRect().bottom, bg: getComputedStyle(h).backgroundColor };
+      }, S);
+      if (st.top0 !== 0) throw new Error(`week without today opened scrolled to ${st.top0}px, want its 00:30 occurrence at the top`);
+      if (Math.abs(st.head - st.nav) > 1) throw new Error(`sticky day header at ${st.head}px, navbar ends at ${st.nav}px`);
+      if (/rgba\(.*, 0\)|transparent/.test(st.bg)) throw new Error(`sticky day header is see-through (${st.bg})`);
       // Chips carry their minutes.
       const chip = (await p.locator(`${S} .zw-wgrid .zw-chip >> nth=0`).innerText()).trim();
       if (chip !== "00:30 Workstation · Wake") throw new Error(`week chip "${chip}"`);
@@ -352,6 +366,111 @@ const cases = {
     } finally {
       await p.setViewportSize(vp);
       await p.unroute("**/api/v1/schedules/occurrences?**");
+    }
+    await tab(p, "Machines");
+  },
+  "schedules wide: current-time line, long press / double-click adds a one-off, chips and day taps unchanged": async (p) => {
+    const S = SCHED;
+    const F = ".zw-sched-form.modal-in";
+    const vp = p.viewportSize();
+    const before = await scheduleIds(p);
+    // A chip at 05:00 every day, to long-press.
+    await createRule(p, { machine_id: "dev-ws", action: "wake", time: "05:00", repeat: { kind: "daily" }, enabled: true });
+    // Holds the mouse on an element's centre (or a point in it) for 650 ms: a long press.
+    const hold = async (loc, dy = 0.5) => {
+      await loc.scrollIntoViewIfNeeded();
+      const b = await loc.boundingBox();
+      await p.mouse.move(b.x + b.width / 2, b.y + b.height * dy);
+      await p.mouse.down();
+      await p.waitForTimeout(650);
+      await p.mouse.up();
+    };
+    const form = async () => {
+      await p.waitForSelector(`${F} #s-time`);
+      await p.waitForTimeout(700);
+      return [await p.inputValue(`${F} #s-repeat`), await p.inputValue(`${F} #s-date`), await p.inputValue(`${F} #s-time`)].join(" ");
+    };
+    const cancel = async () => {
+      await p.click(`${F} .navbar .left a, ${F} .toolbar a:has-text('Cancel')`);
+      await p.waitForSelector(F, { state: "detached", timeout: 3000 });
+      await p.waitForTimeout(500); // the popup's backdrop fades out after it
+    };
+    const closePopover = async () => {
+      await p.waitForTimeout(500); // F7 binds its outside-tap close once the popover has opened
+      await p.touchscreen.tap(1270, 790);
+      await p.waitForSelector(".popover.modal-in", { state: "detached" });
+    };
+    try {
+      await tab(p, "Schedules");
+      await p.setViewportSize({ width: 1280, height: 800 });
+      await p.waitForSelector(`${S} .zw-wgrid .zw-whead.today`);
+      await p.waitForTimeout(600);
+      // (a) 24 hour rows; this week: the current time in red in its hour row, the solid line inside today's column,
+      // and that row scrolled into view under the sticky header.
+      const n = await p.evaluate(async (sel) => {
+        const tz = (await (await fetch("/api/v1/settings")).json()).timezone;
+        const hm = (d) => new Intl.DateTimeFormat("en-GB", { timeZone: tz, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d);
+        const g = document.querySelector(sel + " .zw-wgrid");
+        const t = g.querySelector(".zw-wnow-t"), line = g.querySelector(".zw-wnow.today"), col = g.querySelector(".zw-whead.today");
+        const r = (e) => e && e.getBoundingClientRect();
+        return { hours: g.querySelectorAll(".zw-whour").length, label: t && t.textContent.trim(), ok: [hm(new Date()), hm(new Date(Date.now() - 60e3)), hm(new Date(Date.now() - 31e3))],
+          line: r(line) && { l: r(line).left, r: r(line).right, y: r(line).top }, col: r(col) && { l: r(col).left, r: r(col).right, b: r(col).bottom }, ih: innerHeight };
+      }, S);
+      if (n.hours !== 24) throw new Error(`${n.hours} hour rows, want 24`);
+      if (!n.ok.includes(n.label)) throw new Error(`current-time label "${n.label}", want ${n.ok[0]}`);
+      if (!n.line || Math.abs(n.line.l - n.col.l) > 1.5 || Math.abs(n.line.r - n.col.r) > 1.5)
+        throw new Error(`today's line ${JSON.stringify(n.line)} not across today's column ${JSON.stringify(n.col)}`);
+      if (!(n.line.y > n.col.b && n.line.y < n.ih)) throw new Error(`current time not scrolled into view (line at ${n.line.y}px, header ends ${n.col.b}px)`);
+      // (b) next week: a long press on an empty slot opens New Schedule for a one-off there at HH:00.
+      await p.click(`${S} [aria-label='Next week']`);
+      await p.waitForSelector(`${S} .zw-wgrid:not(:has(.zw-whead.today))`);
+      await p.waitForTimeout(400);
+      const slot = p.locator(`${S} .zw-wcell[data-hour='10'] >> nth=2`);
+      const date = await slot.getAttribute("data-date");
+      await hold(slot);
+      const got = await form();
+      if (got !== `once ${date} 10:00`) throw new Error(`long-press form "${got}", want "once ${date} 10:00"`);
+      await cancel();
+      // (d) a double-click does the same.
+      const slot2 = p.locator(`${S} .zw-wcell[data-hour='15'] >> nth=4`);
+      const date2 = await slot2.getAttribute("data-date");
+      await slot2.dblclick();
+      const got2 = await form();
+      if (got2 !== `once ${date2} 15:00`) throw new Error(`double-click form "${got2}", want "once ${date2} 15:00"`);
+      await cancel();
+      // A long press on a chip: its actions popover, not the form.
+      await hold(p.locator(`${S} .zw-wcell[data-hour='5'] >> nth=3`).locator(".zw-chip"));
+      await p.waitForSelector(".popover.modal-in:has-text('Skip this time')");
+      if (await p.locator(F).count()) throw new Error("long press on a chip opened the form");
+      await closePopover();
+      // Last week: every slot is over, a long press opens nothing.
+      await p.click(`${S} [aria-label='Previous week']`);
+      await p.click(`${S} [aria-label='Previous week']`);
+      await p.waitForTimeout(800);
+      await hold(p.locator(`${S} .zw-wcell[data-hour='12'] >> nth=3`));
+      await p.waitForTimeout(800);
+      if (await p.locator(`${F}, .popover.modal-in`).count()) throw new Error("long press on a past slot opened something");
+      // (c) month, next month: a long press on a day opens the form for it at 08:00 (and not its popover) ...
+      await p.click(`${S} .segmented button:has-text('Month')`);
+      await p.waitForSelector(`${S} .zw-mgrid`);
+      await p.click(`${S} [aria-label='Next month']`);
+      await p.waitForTimeout(800);
+      const day = p.locator(`${S} .zw-mcell:not(.out) >> nth=14`);
+      const d = await day.getAttribute("data-date");
+      await hold(day, 0.8);
+      const got3 = await form();
+      if (got3 !== `once ${d} 08:00`) throw new Error(`month long-press form "${got3}", want "once ${d} 08:00"`);
+      await p.waitForTimeout(500);
+      if (await p.locator(".zw-day-pop.modal-in").count()) throw new Error("the day popover opened after the long press");
+      await cancel();
+      // ... while a tap still opens the day's popover.
+      await day.click();
+      await p.waitForSelector(".popover.modal-in.zw-day-pop");
+      if (await p.locator(F).count()) throw new Error("a tap on a day opened the form");
+      await closePopover();
+    } finally {
+      await p.setViewportSize(vp);
+      await removeSchedulesExcept(p, before);
     }
     await tab(p, "Machines");
   },

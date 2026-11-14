@@ -58,13 +58,16 @@ watch(
     const st = schedState.settings;
     const today = todayIn(st && st.timezone);
     const s = formState.schedule;
+    // A new rule: the defaults, with the opener's prefill (e.g. a long-pressed calendar slot) on top.
+    const pre = (!s && formState.prefill) || {};
+    const date = (s && s.repeat.date) || pre.date || today;
     Object.assign(draft, {
       machine_id: formState.machineId || (machines.machines[0] && machines.machines[0].id) || "",
       action: s ? s.action : "wake",
-      time: s ? s.time : "08:00",
-      kind: s ? s.repeat.kind : "daily",
-      date: (s && s.repeat.date) || today,
-      days: (s && s.repeat.days && [...s.repeat.days]) || [weekdayOf(today)],
+      time: s ? s.time : pre.time || "08:00",
+      kind: s ? s.repeat.kind : pre.kind || "daily",
+      date,
+      days: (s && s.repeat.days && [...s.repeat.days]) || [weekdayOf(date)],
       enabled: s ? s.enabled : true,
     });
     err.value = "";
@@ -98,7 +101,7 @@ async function useZone(name) {
   busy.value = true;
   try {
     await setTimezone(name);
-    draft.date = todayIn(name);
+    if (!(formState.prefill && formState.prefill.date)) draft.date = todayIn(name);
     step.value = "form";
   } catch (e) {
     err.value = cap(offlineMsg(e));

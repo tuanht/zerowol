@@ -88,18 +88,35 @@
 .zw-chip.reboot{background:var(--zw-amber)}
 .zw-chip.poweroff{background:var(--zw-red)}
 .zw-chip.off{background:var(--zw-grey)}
-/* week grid: an hour-label column + 7 equal day columns; rows are only the hours that hold occurrences */
+/* week grid: an hour-label column + 7 equal day columns, one row per hour (00–23) */
 .zw-wgrid{display:grid;grid-template-columns:56px repeat(7,minmax(0,1fr))}
+/* both grids take long presses / double-clicks on their slots: no text selection or iOS callout on them */
+.zw-wgrid,.zw-mgrid{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 /* day header: weekday + date, today in the theme colour (calendar convention) */
 .zw-whead{padding:4px;font-size:13px;font-weight:600;text-align:center}
 .zw-whead.today{color:var(--f7-theme-color)}
-/* hour label and cells, separated by Framework7's list hairline colour */
-.zw-whour{padding:6px 8px 0 0;font-size:12px;text-align:right;opacity:.6;border-top:1px solid var(--f7-list-item-border-color)}
-.zw-wcell{min-height:34px;padding:4px;display:flex;flex-direction:column;gap:3px;border-top:1px solid var(--f7-list-item-border-color);border-left:1px solid var(--f7-list-item-border-color)}
+/* the header row stays on top while the 24 hours scroll, opaque in the page colour with the list hairline under it,
+   above the rows' current-time line. Sticky offsets count from the page-content's padding edge, which sits below the
+   expanded large title: minus the large title's height puts the row right under the collapsed navbar */
+.zw-wcorner,.zw-whead{position:sticky;top:calc(0px - var(--f7-navbar-large-title-height,0px));z-index:2;background:var(--f7-page-bg-color);box-shadow:0 1px 0 var(--f7-list-item-border-color)}
+/* hour label and cells, separated by Framework7's list hairline colour; relative: they hold the current-time marks */
+.zw-whour{position:relative;padding:6px 8px 0 0;font-size:12px;text-align:right;opacity:.6;border-top:1px solid var(--f7-list-item-border-color)}
+/* cells: at least a 44px touch target for the long press */
+.zw-wcell{position:relative;min-height:44px;padding:4px;display:flex;flex-direction:column;gap:3px;border-top:1px solid var(--f7-list-item-border-color);border-left:1px solid var(--f7-list-item-border-color)}
 /* today's column: a faint theme-colour tint */
 .zw-wcell.today{background:rgba(var(--f7-theme-color-rgb),.07)}
-/* the compressed "…" row standing for a run of empty hours: spans all columns, short */
-.zw-wgap{grid-column:1/-1;font-size:12px;line-height:16px;text-align:center;opacity:.5;border-top:1px solid var(--f7-list-item-border-color)}
+/* a long-pressed / double-clicked slot: a stronger tint while the form opens */
+.zw-wcell.zw-pressed,.zw-mcell.zw-pressed{background:rgba(var(--f7-theme-color-rgb),.2)}
+/* current time (iOS Calendar): the current hour's label is the time in red at the line's height (centred on it),
+   and the next hour's label gives way when they would touch */
+.zw-whour.now{opacity:1}
+.zw-wnow-t{position:absolute;right:8px;transform:translateY(-50%);color:var(--zw-red);font-weight:700}
+.zw-whour.near{visibility:hidden}
+/* the red line across the week at the current minute (over the column hairline, above the chips, never taking
+   taps): faint in the other days, solid in today's column with a dot at its left edge */
+.zw-wnow{position:absolute;left:-1px;right:0;height:2px;margin-top:-1px;background:var(--zw-red);opacity:.3;z-index:1;pointer-events:none}
+.zw-wnow.today{opacity:1}
+.zw-wnow.today::before{content:"";position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--zw-red)}
 /* month grid: 7 equal columns; the cells' fixed height keeps the 6 week rows equal and inside a 1280×800 window */
 .zw-mgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
 .zw-mhead{padding-bottom:4px;font-size:12px;text-align:center;opacity:.6}

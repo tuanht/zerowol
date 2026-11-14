@@ -14,7 +14,7 @@ import { offlineMsg } from "../lib/api.js";
 import { toast } from "../lib/ui.js";
 import { state as machines } from "../lib/machines.js";
 import { addDays, addMonths, fmtLong, fmtRange, monthGrid, weekDays } from "../lib/dates.js";
-import { fetchOccurrences, reloadSchedules, schedState, setTimezone, todayIn } from "../lib/schedules.js";
+import { clockIn, fetchOccurrences, openScheduleForm, reloadSchedules, schedState, setTimezone, todayIn } from "../lib/schedules.js";
 import { openOccurrenceActions } from "../lib/occurrences.js";
 
 const props = defineProps({ f7router: { type: Object, required: true } });
@@ -119,6 +119,13 @@ function pickDay(d) {
   view.value = "day";
 }
 const pick = (o, el) => openOccurrenceActions(o, el);
+// Long press / double-click on a free slot (wide grids): the New Schedule form for a one-off at that date and time.
+// Saving bumps schedState.rev, which reloads this page as for the + button.
+const create = (prefill) => openScheduleForm({ prefill: { kind: "once", ...prefill } });
+// The week grid's current-time line: now in the schedule timezone, ticking every 30 s while the tab is shown.
+const clock = ref(clockIn(tz.value));
+const tick = () => (clock.value = clockIn(tz.value));
+watch(tz, tick);
 
 // Month view: tapping a day opens its agenda (our DayAgenda) in an F7 popover anchored to the cell.
 // The popover element lives in this page's template; F7 moves it out while open and puts it back on close.
@@ -174,14 +181,18 @@ const moreZones = () =>
 // Reload on showing the tab, and every 60 s while the tab and the document are visible.
 const pageEl = ref(null);
 let timer = null;
+let ticker = null;
 function sync() {
   const el = pageEl.value && pageEl.value.$el;
   const shown = !!el && !!el.closest(".tab-active") && document.visibilityState === "visible";
   if (shown && !timer) {
     load();
     timer = setInterval(load, 60e3);
+    tick();
+    ticker = setInterval(tick, 30e3);
   } else if (!shown && timer) {
     clearInterval(timer);
+    clearInterval(ticker);
     timer = null;
   }
 }
@@ -195,6 +206,7 @@ onBeforeUnmount(() => {
   f7.off("tabShow tabHide", sync);
   document.removeEventListener("visibilitychange", sync);
   clearInterval(timer);
+  clearInterval(ticker);
 });
 </script>
 
@@ -222,9 +234,11 @@ onBeforeUnmount(() => {
               <Segmented v-model="view" :options="VIEWS" label="View" />
             </div>
           </div>
-          <template v-if="ready && occs.length && !failed">
-            <MonthGrid v-if="isMonth" :month="selected" :occurrences="occs" :today="today" :now="now" @pick="pickDate" />
-            <WeekGrid v-else :days="days" :occurrences="occs" :today="today" :now="now" @pick="pick" />
+          <!-- drawn even without occurrences: the free slots are where a long press adds one -->
+          <template v-if="ready && !failed">
+            <MonthGrid v-if="isMonth" :month="selected" :occurrences="occs" :today="today" :now="now" :zone="tz || ''" @pick="pickDate" @create="create" />
+            <WeekGrid v-else :days="days" :occurrences="occs" :today="today" :now="now" :clock="clock" :zone="tz || ''" @pick="pick" @create="create" />
+            <div class="block-footer">Long-press or double-click {{ isMonth ? "a day" : "a time" }} to add a schedule.</div>
           </template>
         </div>
       </div>
@@ -240,7 +254,7 @@ onBeforeUnmount(() => {
         <p>Couldn't load this {{ span }}'s schedules.</p>
       </div>
       <template v-else-if="!ready" />
-      <div v-else-if="!occs.length" class="block text-align-center">
+      <div v-else-if="!occs.length && !wide" class="block text-align-center">
         <p>No schedules this {{ span }}</p>
         <button class="button button-fill button-round" type="button" @click="add">Add schedule</button>
       </div>
