@@ -1,4 +1,4 @@
-use crate::agent_client::{self, AgentError};
+use crate::actions::{self, WakeOutcome};
 use crate::app::{ApiError, AppState, JsonBody};
 use crate::auth::Source;
 use crate::install;
@@ -6,7 +6,6 @@ use crate::model::{
     AgentCfg, Machine, default_broadcast, format_mac, new_id, new_secret, parse_mac,
 };
 use crate::status::{self, Status};
-use crate::wol;
 use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::http::{HeaderMap, StatusCode};
@@ -14,10 +13,8 @@ use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::net::Ipv4Addr;
-use std::time::{Duration, Instant};
 use zerowol_proto::Action;
 
-const RATE_WINDOW: Duration = Duration::from_secs(10);
 const DEFAULT_AGENT_PORT: u16 = 9009;
 
 type ApiResult<T> = Result<T, ApiError>;
@@ -37,12 +34,14 @@ pub struct MachineView {
     wol_port: u16,
     probe_port: u16,
     agent: Option<AgentView>,
+    /// Number of enabled schedules for this machine.
+    schedules: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     status: Option<Status>,
 }
 
 impl MachineView {
-    fn new(m: &Machine, status: Option<Status>) -> Self {
+    fn new(m: &Machine, status: Option<Status>, schedules: usize) -> Self {
         MachineView {
             id: m.id.clone(),
             name: m.name.clone(),
@@ -52,6 +51,7 @@ impl MachineView {
             wol_port: m.wol_port,
             probe_port: m.probe_port,
             agent: m.agent.as_ref().map(|a| AgentView { port: a.port }),
+            schedules,
             status,
         }
     }
@@ -116,8 +116,13 @@ fn valid_port(v: &Option<serde_json::Value>, what: &str) -> ApiResult<Option<u16
     }
 }
 
-fn log(action: &str, machine: &str, source: &Source, result: &str) {
-    tracing::info!("action={action} machine={machine} source={source} result={result}");
+pub(crate) use crate::actions::log;
+
+fn enabled_count(st: &crate::model::State, machine_id: &str) -> usize {
+    st.schedules
+        .iter()
+        .filter(|s| s.enabled && s.machine_id == machine_id)
+        .count()
 }
 
 fn find(state: &AppState, id: &str) -> ApiResult<Machine> {
@@ -131,12 +136,13 @@ fn find(state: &AppState, id: &str) -> ApiResult<Machine> {
 }
 
 pub async fn list(State(state): State<AppState>) -> Json<Vec<MachineView>> {
-    let ms = state.store.snapshot().machines;
-    let sts = status::all_statuses(&ms).await;
+    let snap = state.store.snapshot();
+    let sts = status::all_statuses(&snap.machines).await;
     Json(
-        ms.iter()
+        snap.machines
+            .iter()
             .zip(sts)
-            .map(|(m, s)| MachineView::new(m, Some(s)))
+            .map(|(m, s)| MachineView::new(m, Some(s), enabled_count(&snap, &m.id)))
             .collect(),
     )
 }
@@ -181,7 +187,7 @@ pub async fn create(
         Ok::<_, ApiError>(m)
     })?;
     log("create", &m.name, &source, "ok");
-    Ok((StatusCode::CREATED, Json(MachineView::new(&m, None))).into_response())
+    Ok((StatusCode::CREATED, Json(MachineView::new(&m, None, 0))).into_response())
 }
 
 pub async fn patch(
@@ -204,7 +210,7 @@ pub async fn patch(
         .transpose()?;
     let wol_port = valid_port(&b.wol_port, "invalid wol_port")?;
     let probe_port = valid_port(&b.probe_port, "invalid probe_port")?;
-    let m = state.store.update(|st| {
+    let (m, count) = state.store.update(|st| {
         if let Some(mac) = &mac
             && st.machines.iter().any(|m| m.id != id && &m.mac == mac)
         {
@@ -243,10 +249,20 @@ pub async fn patch(
             }
             _ => {}
         }
-        Ok::<_, ApiError>(m.clone())
+        let m = m.clone();
+        if m.agent.is_none() {
+            // Power actions need the agent: turn those rules off.
+            for s in st.schedules.iter_mut().filter(|s| {
+                s.machine_id == m.id && !matches!(s.action, crate::model::SchedAction::Wake)
+            }) {
+                s.enabled = false;
+            }
+        }
+        let count = enabled_count(st, &m.id);
+        Ok::<_, ApiError>((m, count))
     })?;
     log("update", &m.name, &source, "ok");
-    Ok(Json(MachineView::new(&m, None)))
+    Ok(Json(MachineView::new(&m, None, count)))
 }
 
 pub async fn delete(
@@ -260,7 +276,16 @@ pub async fn delete(
             .iter()
             .position(|m| m.id == id)
             .ok_or_else(not_found)?;
-        Ok::<_, ApiError>(st.machines.remove(i).name)
+        let name = st.machines.remove(i).name;
+        let gone: Vec<String> = st
+            .schedules
+            .iter()
+            .filter(|s| s.machine_id == id)
+            .map(|s| s.id.clone())
+            .collect();
+        st.schedules.retain(|s| s.machine_id != id);
+        st.schedule_log.retain(|e| !gone.contains(&e.schedule_id));
+        Ok::<_, ApiError>(name)
     })?;
     state
         .limiter
@@ -285,26 +310,11 @@ pub async fn wake(
     Path(id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let m = find(&state, &id)?;
-    if status::machine_status(&m).await.online {
-        log("wake", &m.name, &source, "already online");
-        return Ok(Json(json!({"result":"already online"})));
-    }
-    let mac = parse_mac(&m.mac).map_err(|_| bad("invalid mac"))?;
-    #[cfg(feature = "dev-fakes")]
-    if crate::fake::wake(&m).is_some() {
-        log("wake", &m.name, &source, "sent (simulated)");
-        return Ok(Json(json!({"result":"sent"})));
-    }
-    match wol::send(mac, m.broadcast, m.wol_port).await {
-        Ok(()) => {
-            log("wake", &m.name, &source, "sent");
-            Ok(Json(json!({"result":"sent"})))
-        }
-        Err(e) => {
-            log("wake", &m.name, &source, "error");
-            Err(ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
-        }
-    }
+    let result = match actions::wake(&state, &m, &source).await? {
+        WakeOutcome::Sent => "sent",
+        WakeOutcome::AlreadyOnline => "already online",
+    };
+    Ok(Json(json!({ "result": result })))
 }
 
 async fn power(
@@ -315,48 +325,16 @@ async fn power(
     action: Action,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
     let m = find(&state, &id)?;
-    let Some(agent) = &m.agent else {
-        return Err(ApiError(StatusCode::CONFLICT, "no agent".into()));
-    };
-    {
-        let mut lim = state.limiter.lock().unwrap_or_else(|e| e.into_inner());
-        let t = Instant::now();
-        if let Some(prev) = lim.get(&m.id)
-            && t.duration_since(*prev) < RATE_WINDOW
-        {
-            return Err(ApiError(
-                StatusCode::TOO_MANY_REQUESTS,
-                "rate limited".into(),
-            ));
-        }
-        lim.insert(m.id.clone(), t);
-    }
-    #[cfg(feature = "dev-fakes")]
-    let sim = crate::fake::power(&m, action);
-    #[cfg(not(feature = "dev-fakes"))]
-    let sim = None;
-    let res = match sim {
-        Some(r) => r,
-        None => agent_client::power(m.ip, agent.port, &agent.secret, action).await,
-    };
-    match res {
-        Ok(()) => {
-            log(name, &m.name, &source, "accepted");
-            Ok((StatusCode::ACCEPTED, Json(json!({"result":"accepted"}))))
-        }
-        Err(e @ (AgentError::Unreachable | AgentError::Rejected(_))) => {
-            log(name, &m.name, &source, &e.message());
-            Err(ApiError(StatusCode::BAD_GATEWAY, e.message()))
-        }
-    }
+    actions::power(&state, &m, &source, name, action).await?;
+    Ok((StatusCode::ACCEPTED, Json(json!({"result":"accepted"}))))
 }
 
-pub async fn shutdown(
+pub async fn poweroff(
     State(state): State<AppState>,
     Extension(source): Extension<Source>,
     Path(id): Path<String>,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    power(state, source, id, "shutdown", Action::Shutdown).await
+    power(state, source, id, "poweroff", Action::Shutdown).await
 }
 
 pub async fn reboot(

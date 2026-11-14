@@ -30,6 +30,7 @@ rand = "0.10"
 base64 = "0.23"
 tracing = "0.1"
 tracing-subscriber = "0.3"
+jiff = { version = "0.2", default-features = false, features = ["std", "tzdb-bundle-always"] }
 
 [dev-dependencies]
 tempfile = "3"

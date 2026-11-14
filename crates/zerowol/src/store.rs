@@ -108,11 +108,18 @@ impl Store {
         }
     }
 
+    /// Records the scheduler's last pass; written by the periodic flusher.
+    pub fn touch_heartbeat(&self, at: u64) {
+        let mut guard = self.state.write().unwrap_or_else(|e| e.into_inner());
+        guard.scheduler_heartbeat = Some(at);
+        self.meta.lock().unwrap_or_else(|e| e.into_inner()).0 = true;
+    }
+
     pub fn flush_if_due(&self, now: u64) -> Result<(), StoreError> {
         self.flush_inner(now, false)
     }
 
-    /// Writes pending `last_used` changes now, regardless of the interval.
+    /// Writes pending `last_used` / heartbeat changes now, regardless of the interval.
     pub fn flush(&self) -> Result<(), StoreError> {
         self.flush_inner(crate::model::now(), true)
     }

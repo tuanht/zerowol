@@ -28,6 +28,17 @@ jobs:
       - run: cargo clippy -p zerowol --all-targets --features dev-fakes -- -D warnings
       - run: "cargo test -p zerowol --features dev-fakes fake::"
 
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # npm ci + vitest + vite build, then fail if the committed web/dist differs
+      # from the fresh build or exceeds the gzip budget (scripts/web-size.mjs).
+      - run: make web-check
+
   docker:
     runs-on: ubuntu-latest
     steps:

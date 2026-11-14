@@ -1,5 +1,8 @@
+pub mod actions;
 pub mod agent_client;
 pub mod api_machines;
+pub mod api_schedules;
+pub mod api_settings;
 pub mod api_tokens;
 pub mod app;
 pub mod assets;
@@ -10,6 +13,8 @@ pub mod fake;
 pub mod install;
 pub mod model;
 pub mod probe;
+pub mod schedule;
+pub mod scheduler;
 pub mod status;
 pub mod store;
 pub mod wol;

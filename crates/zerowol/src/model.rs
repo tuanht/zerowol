@@ -43,6 +43,77 @@ pub struct Token {
     pub last_used: Option<u64>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum SchedAction {
+    Wake,
+    Reboot,
+    Poweroff,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum Weekday {
+    Mon,
+    Tue,
+    Wed,
+    Thu,
+    Fri,
+    Sat,
+    Sun,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum Repeat {
+    Once { date: String },
+    Daily,
+    Weekdays,
+    Weekends,
+    Weekly { days: Vec<Weekday> },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct Schedule {
+    pub id: String,
+    pub machine_id: String,
+    pub action: SchedAction,
+    /// "HH:MM" in the schedule timezone.
+    pub time: String,
+    pub repeat: Repeat,
+    pub enabled: bool,
+    /// "YYYY-MM-DD" dates whose occurrence is skipped.
+    #[serde(default)]
+    pub skip: Vec<String>,
+    pub created: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum LogResult {
+    Firing,
+    Ok,
+    Failed,
+    Missed,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+pub struct LogEntry {
+    pub schedule_id: String,
+    pub date: String,
+    pub at: u64,
+    pub result: LogResult,
+    /// Error text, or "already online".
+    #[serde(default)]
+    pub detail: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+pub struct Settings {
+    #[serde(default)]
+    pub timezone: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct State {
     #[serde(default = "d1")]
@@ -51,6 +122,14 @@ pub struct State {
     pub machines: Vec<Machine>,
     #[serde(default)]
     pub tokens: Vec<Token>,
+    #[serde(default)]
+    pub settings: Settings,
+    #[serde(default)]
+    pub schedules: Vec<Schedule>,
+    #[serde(default)]
+    pub schedule_log: Vec<LogEntry>,
+    #[serde(default)]
+    pub scheduler_heartbeat: Option<u64>,
 }
 
 impl Default for State {
@@ -59,6 +138,10 @@ impl Default for State {
             version: 1,
             machines: Vec::new(),
             tokens: Vec::new(),
+            settings: Settings::default(),
+            schedules: Vec::new(),
+            schedule_log: Vec::new(),
+            scheduler_heartbeat: None,
         }
     }
 }
@@ -159,5 +242,30 @@ mod tests {
         assert_eq!(st.machines[0].probe_port, 22);
         assert!(st.machines[0].agent.is_none());
         assert!(st.tokens.is_empty());
+    }
+
+    #[test]
+    fn state_without_schedule_fields_loads() {
+        let j = r#"{"version":1,"machines":[{"id":"a","name":"n","mac":"AA:BB:CC:DD:EE:FF","ip":"10.0.0.2","broadcast":"10.0.0.255"}]}"#;
+        let st: State = serde_json::from_str(j).unwrap();
+        assert!(st.schedules.is_empty());
+        assert!(st.schedule_log.is_empty());
+        assert_eq!(st.settings.timezone, None);
+        assert_eq!(st.scheduler_heartbeat, None);
+    }
+
+    #[test]
+    fn schedule_json_shape() {
+        let r = Repeat::Weekly {
+            days: vec![Weekday::Mon, Weekday::Fri],
+        };
+        assert_eq!(
+            serde_json::to_string(&r).unwrap(),
+            r#"{"kind":"weekly","days":["mon","fri"]}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&SchedAction::Poweroff).unwrap(),
+            r#""poweroff""#
+        );
     }
 }

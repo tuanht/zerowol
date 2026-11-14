@@ -7,6 +7,8 @@ pub struct Config {
     pub data: PathBuf,
     pub require_token: bool,
     pub bind: IpAddr,
+    /// `TZ` env var, trimmed; None when unset or empty.
+    pub tz_env: Option<String>,
 }
 
 fn parse_bool(s: &str) -> Result<bool, String> {
@@ -37,11 +39,15 @@ pub fn from_vars(get: impl Fn(&str) -> Option<String>) -> Result<Config, String>
             .map_err(|e| format!("ZEROWOL_BIND: invalid value '{v}': {e}"))?,
         None => IpAddr::from([0, 0, 0, 0]),
     };
+    let tz_env = get("TZ")
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty());
     Ok(Config {
         port,
         data,
         require_token,
         bind,
+        tz_env,
     })
 }
 
@@ -87,6 +93,16 @@ mod tests {
             cfg(&[("ZEROWOL_REQUIRE_TOKEN", "1")])
                 .unwrap()
                 .require_token
+        );
+    }
+
+    #[test]
+    fn tz_env_trimmed_and_empty_is_none() {
+        assert_eq!(cfg(&[]).unwrap().tz_env, None);
+        assert_eq!(cfg(&[("TZ", "  ")]).unwrap().tz_env, None);
+        assert_eq!(
+            cfg(&[("TZ", " Europe/Berlin ")]).unwrap().tz_env.as_deref(),
+            Some("Europe/Berlin")
         );
     }
 

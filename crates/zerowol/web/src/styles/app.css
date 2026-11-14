@@ -1,0 +1,229 @@
+:root{--zw-green:#34C759;--zw-amber:#FF9500;--zw-red:#FF3B30;--zw-grey:#8E8E93}
+.dark{--zw-green:#30D158;--zw-amber:#FF9F0A;--zw-red:#FF453A}
+.ico{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.offline{position:fixed;top:0;left:0;right:0;z-index:20000;background:var(--zw-red);color:#fff;text-align:center;font-size:13px;padding:calc(env(safe-area-inset-top) + 4px) 8px 4px}
+
+/* machines */
+.card.machine{overflow:hidden}
+.tile{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;background:rgba(120,120,128,.14);color:var(--f7-theme-color)}
+.zw-md .tile{border-radius:50%;background:var(--f7-md-secondary-container,rgba(120,120,128,.14));color:var(--f7-md-on-secondary-container,inherit)}
+.status-r{display:flex;align-items:center;gap:6px;white-space:nowrap}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--zw-grey);flex:none}
+.dot.on{background:var(--zw-green)}
+.dot.busy{background:var(--zw-amber);animation:zwpulse 1s ease-in-out infinite}
+.busy-t{color:var(--zw-amber)}
+@keyframes zwpulse{50%{opacity:.35}}
+/* iOS: tonal capsule buttons (F7 button-tonal/round/large) share the footer; F7's card footer has no gap between children.
+   Material: Framework7's card footer, buttons at the end (M3 card actions). */
+.zw-ios .card-footer.actions{gap:8px}
+.zw-ios .card-footer.actions .button{flex:1}
+/* Material: wrap instead of clipping a label when the actions don't fit (2-column landscape with a cutout, larger
+   fonts); wrapping happens before F7's buttons would shrink, the moved button stays at the end */
+.zw-md .card-footer.actions{justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.card-footer.actions .button{gap:6px;width:auto}
+.card-footer.actions .ico{width:18px;height:18px}
+/* iOS: the schedules button is an icon-only round button, not an equal share of the footer */
+.zw-ios .card-footer.actions .zw-sched-btn{flex:none;width:var(--f7-button-large-height);padding:0}
+/* our inline clock SVG would sit on a text baseline inside F7's <i class="icon"> (kept for its badge placement) */
+.zw-sched-btn .ico{display:block}
+.foot{max-width:640px;margin-left:auto;margin-right:auto}
+.empty .item-inner{justify-content:center;text-align:center;padding:28px 0}
+.empty b{display:block;font-size:19px;margin-bottom:4px}
+.empty .sub{opacity:.6;font-size:14px}
+
+/* forms */
+/* keep content readable on tablets/desktop: cap width, keep inset margins on phones */
+.page-content .list.inset,.page-content .block.inset,.page-content>.block-title,.page-content>.block-footer,.page-content>.block:not(.inset){--zw-side:max(calc(16px + var(--f7-safe-area-left)),calc(50% - 320px));margin-left:var(--zw-side);margin-right:var(--zw-side)}
+.zw-ios .zw-inline .item-input>.item-inner{flex-direction:row;align-items:center;flex-wrap:nowrap}
+.zw-ios .zw-inline .item-label{width:96px;flex:none;margin:0;padding:0;font-size:inherit;line-height:inherit;color:inherit;align-self:center}
+.zw-ios .zw-inline .item-input-wrap{flex:1;min-width:0;margin:0}
+.zw-ios .zw-inline input{text-align:right}
+.errmsg{color:var(--f7-input-error-text-color);font-size:14px;margin-top:8px;margin-bottom:0}
+.errmsg:empty{display:none}
+/* iOS has no outlined inputs, so mark the invalid row's label (Material uses F7's own outline + label colour) */
+.zw-ios .item-input-invalid .item-label{color:var(--f7-input-error-text-color)}
+
+/* schedules */
+/* action colour dots and pills (wake / reboot / power off): Framework7 has no colour-coded status marker */
+.dot.wake{background:var(--zw-green)}
+.dot.reboot{background:var(--zw-amber)}
+.dot.poweroff{background:var(--zw-red)}
+.zw-pill{display:inline-block;align-self:center;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600;line-height:16px;color:#fff;background:var(--zw-green);margin-right:12px}
+.zw-pill.reboot{background:var(--zw-amber)}
+.zw-pill.poweroff{background:var(--zw-red)}
+/* weekly day buttons: our own row of 7 equal cells inside the list (F7 has no weekday picker) */
+.zw-days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:8px 16px}
+/* the action segmented control spans its own list row (inside .item-inner it would shrink to its labels) */
+.zw-seg-row{padding:8px 16px}
+/* iOS list rows put the value on the right: mirrors Phase 1's .zw-ios .zw-inline input rule for selects */
+.zw-ios .zw-inline select{text-align:right;text-align-last:right}
+/* a disabled rule's pill: grey like the offline status dot */
+.zw-pill.off{background:var(--zw-grey)}
+/* agenda row text of a disabled rule (greyed like F7's item footer) and a failed / missed outcome:
+   the core framework7 css has no text-color-gray / text-color-red helpers (only text-color-primary) */
+.zw-off{color:var(--f7-list-item-footer-text-color)}
+.zw-bad{color:var(--zw-red)}
+/* Schedules page week strip (F7 has no calendar strip): our own grid inside a plain F7 .block,
+   ‹ + 7 day buttons + ›. pan-y: the browser keeps vertical scrolling, our pointer handlers get the horizontal swipe. */
+.zw-strip{display:grid;grid-template-columns:32px repeat(7,1fr) 32px;align-items:center;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+/* the day cells are our own <button>s: drop the browser's button box and stack letter / number / dots */
+.zw-day{appearance:none;background:none;border:0;margin:0;padding:4px 0;font:inherit;color:inherit;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
+/* weekday letter above the number: small and dimmed, like a calendar header (our own span) */
+.zw-wd{font-size:12px;opacity:.6}
+/* the day number sits in a circle: filled with the theme colour when selected, theme-coloured text for today
+   (the calendar convention on both platforms; F7 has no day-cell component to provide it) */
+.zw-num{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px}
+.zw-day.today .zw-num{color:var(--f7-theme-color);font-weight:600}
+.zw-day.sel .zw-num{background:var(--f7-theme-color);color:var(--f7-md-on-primary,#fff);font-weight:600}
+/* one small dot per action colour under the number (fixed height so days with and without dots line up) */
+.zw-dots{display:flex;gap:3px;height:6px}
+.zw-dots .dot{width:6px;height:6px}
+/* ---- wide Schedules views (Week grid, Month grid): Framework7 has no calendar grid, so these are our own elements ---- */
+/* bar above the grids: ‹ › arrows, the range title, and the view segmented control pushed to the end */
+.zw-bar{display:flex;align-items:center;gap:4px;margin-bottom:8px}
+/* range title: our own span, sized with Framework7's medium block-title tokens */
+.zw-bar-title{flex:1;min-width:0;margin-left:8px;font-size:var(--f7-block-title-medium-font-size);font-weight:var(--f7-block-title-medium-font-weight);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* the segmented control's own box: fixed width, else in a flex row it stretches to the whole bar */
+.zw-bar-seg{flex:none;width:240px}
+/* chips: our own coloured buttons/spans (machine · action), same colours as the pills; one line, ellipsis */
+.zw-chip{appearance:none;border:0;margin:0;font:inherit;display:block;width:100%;box-sizing:border-box;text-align:left;padding:2px 6px;border-radius:6px;font-size:12px;font-weight:600;line-height:16px;color:#fff;background:var(--zw-green);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.zw-chip.reboot{background:var(--zw-amber)}
+.zw-chip.poweroff{background:var(--zw-red)}
+.zw-chip.off{background:var(--zw-grey)}
+/* week grid: an hour-label column + 7 equal day columns, one row per hour (00–23) */
+.zw-wgrid{display:grid;grid-template-columns:56px repeat(7,minmax(0,1fr))}
+/* both grids take long presses / double-clicks on their slots: no text selection or iOS callout on them */
+.zw-wgrid,.zw-mgrid{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+/* day header: weekday + date, today in the theme colour (calendar convention) */
+.zw-whead{padding:4px;font-size:13px;font-weight:600;text-align:center}
+.zw-whead.today{color:var(--f7-theme-color)}
+/* the header row stays on top while the 24 hours scroll, opaque in the page colour with the list hairline under it,
+   above the rows' current-time line. Sticky offsets count from the page-content's padding edge, which sits below the
+   expanded large title: minus the large title's height puts the row right under the collapsed navbar */
+.zw-wcorner,.zw-whead{position:sticky;top:calc(0px - var(--f7-navbar-large-title-height,0px));z-index:2;background:var(--f7-page-bg-color);box-shadow:0 1px 0 var(--f7-list-item-border-color)}
+/* hour label and cells, separated by Framework7's list hairline colour; relative: they hold the current-time marks */
+.zw-whour{position:relative;padding:6px 8px 0 0;font-size:12px;text-align:right;opacity:.6;border-top:1px solid var(--f7-list-item-border-color)}
+/* cells: at least a 44px touch target for the long press */
+.zw-wcell{position:relative;min-height:44px;padding:4px;display:flex;flex-direction:column;gap:3px;border-top:1px solid var(--f7-list-item-border-color);border-left:1px solid var(--f7-list-item-border-color)}
+/* today's column: a faint theme-colour tint */
+.zw-wcell.today{background:rgba(var(--f7-theme-color-rgb),.07)}
+/* a long-pressed / double-clicked slot: a stronger tint while the form opens */
+.zw-wcell.zw-pressed,.zw-mcell.zw-pressed{background:rgba(var(--f7-theme-color-rgb),.2)}
+/* current time (iOS Calendar), in the current hour's row at the current minute: */
+/* - that row's hour label holds the time instead, so it isn't dimmed like the other labels */
+.zw-whour.now{opacity:1}
+/* - the time itself: red and bold at the line's height, vertically centred on it */
+.zw-wnow-t{position:absolute;right:8px;transform:translateY(-50%);color:var(--zw-red);font-weight:700}
+/* - the next hour's label gives way when the time would touch it (from :50) */
+.zw-whour.near{visibility:hidden}
+/* - the red line across a day cell: over the column hairline, above the chips, never taking taps; faint in other days */
+.zw-wnow{position:absolute;left:-1px;right:0;height:2px;margin-top:-1px;background:var(--zw-red);opacity:.3;z-index:1;pointer-events:none}
+/* - solid in today's column */
+.zw-wnow.today{opacity:1}
+/* - with a dot centred on its left edge in today's column */
+.zw-wnow.today::before{content:"";position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:50%;background:var(--zw-red)}
+/* month grid: 7 equal columns; the cells' fixed height keeps the 6 week rows equal and inside a 1280×800 window */
+.zw-mgrid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.zw-mhead{padding-bottom:4px;font-size:12px;text-align:center;opacity:.6}
+/* a day cell is our own <button>: drop the browser's button box, stack number / dots / chips */
+.zw-mcell{appearance:none;background:none;border:0;border-top:1px solid var(--f7-list-item-border-color);margin:0;padding:4px 6px;font:inherit;color:inherit;height:72px;min-width:0;display:flex;flex-direction:column;align-items:stretch;gap:2px;overflow:hidden;text-align:left;cursor:pointer}
+/* a hairline between the day columns (as in the week grid), so "+N" at a cell's right edge stays clear of the next
+   day's number; none before the first column (the header row is the grid's first 7 children, so cells start at 8) */
+.zw-mcell{border-left:1px solid var(--f7-list-item-border-color)}
+.zw-mcell:nth-child(7n+1){border-left:0}
+/* the cell's first line: day number, the repeating rules' dots, and "+N" at the end */
+.zw-mtop{display:flex;align-items:center;gap:6px}
+/* once-rule chips keep their height (in the fixed-height column they would otherwise be squashed) */
+.zw-mcell .zw-chip{flex:none;line-height:14px;padding:1px 6px}
+/* days of the neighbouring months are dimmed (the contents only, so the row's hairline stays even) */
+.zw-mcell.out>*{opacity:.4}
+/* day number in a circle, filled with the theme colour for today (as the week strip's selected day) */
+.zw-mnum{width:22px;height:22px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px}
+.zw-mcell.today .zw-mnum{background:var(--f7-theme-color);color:var(--f7-md-on-primary,#fff);font-weight:600}
+/* "+N" once-rule chips that don't fit */
+.zw-more{margin-left:auto;font-size:11px;opacity:.6}
+/* the day popover: our own popover instance gets a wider Framework7 popover width so "HH:MM · machine" fits */
+.zw-day-pop{--f7-popover-width:320px}
+/* machine schedule sheet: auto height (F7 sheet), but our list scrolls once it gets long */
+.zw-sheet-body{max-height:70vh;overflow-y:auto;max-width:672px;margin:0 auto}
+/* Tablet/desktop: F7 sheets always span the full width, but the New schedule popup becomes a centred card of
+   --f7-popup-tablet-width at this exact breakpoint. Give the sheet the same width, centred like F7's popup does
+   (left 50% + negative margin, never transform: F7 animates the sheet's translateY), still attached to the bottom. */
+@media (min-width:630px) and (min-height:630px){
+  .zw-sched-sheet{left:50%;width:var(--f7-popup-tablet-width);margin-left:calc(-1 * var(--f7-popup-tablet-width) / 2)}
+}
+
+/* pairing + tokens */
+.code{font:13px/18px ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;background:rgba(120,120,128,.14);border-radius:12px;padding:12px;margin:12px 0 0;user-select:all;-webkit-user-select:all}
+.pair-btn{margin-top:12px}
+.pair{margin:16px 0 4px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:15px;opacity:.75}
+.pair.ok{color:var(--zw-green);font-weight:600;opacity:1}
+.block-strong p{margin:0}
+.toast-bad .toast-text{color:var(--zw-red)}
+.dark .toast-bad .toast-text{color:#ff8a80}
+.token-row .item-inner{flex-direction:row!important;align-items:center;gap:12px}
+.token-row .item-input-wrap{flex:1;min-width:0}
+
+/* action blocks align with the inset cards/lists */
+.page-content>.block.zw-actions{padding-left:0;padding-right:0}
+
+/* Installed iOS PWA (any theme, html.zw-ios-pwa set in main.js): the OS draws a blurred status-bar band taller than
+   safe-area-inset-top, which smears the top of navbar buttons. Push all
+   Framework7 top chrome (navbar, page offsets) down by an extra gap. */
+html.zw-ios-pwa{--zw-top-gap:16px;--f7-safe-area-top:calc(env(safe-area-inset-top,0px) + var(--zw-top-gap))}
+html.zw-ios-pwa .offline{padding-top:calc(env(safe-area-inset-top) + var(--zw-top-gap) + 4px)}
+
+/* ---------- navigation ----------
+   Phone: iOS floating bottom capsule / Material bottom navigation bar.
+   Wide (>= 768px, html.zw-wide toggled live by App.vue):
+   iOS: floating capsule at the top center, labels only.
+   Material: 80px navigation rail on the left with the FAB at its top. */
+.zw-nav i.icon{width:var(--f7-tabbar-icon-size)}
+.zw-nav i.icon .ico{width:100%;height:100%}
+.fab>a .ico{width:24px;height:24px;stroke-width:2}
+/* Material phone: Framework7's fab-right-bottom places the FAB itself, 16px above
+   the bottom tab bar (it adds the bar height). Only the rail moves it.
+   z-index: the FAB is a sibling of the tab views, which Framework7 stacks at 5000. */
+.zw-fab{z-index:5002}
+
+.zw-wide .views>.view{--f7-page-toolbar-bottom-offset:0px}
+
+/* iOS: Framework7's own floating Liquid Glass tab bar (.toolbar-pane) on phones.
+   Wide: same glass pane moved to the top center, labels only. */
+.zw-ios.zw-wide{--zw-capsule-top:calc(env(safe-area-inset-top,0px) + var(--zw-top-gap,0px) + 8px)}
+.zw-ios.zw-wide .views>.view{--f7-safe-area-top:calc(var(--zw-capsule-top) + 48px)}
+.zw-ios.zw-wide .zw-nav{top:var(--zw-capsule-top);bottom:auto;left:50%;right:auto;transform:translateX(-50%);width:auto;height:44px}
+.zw-ios.zw-wide .zw-nav::before,.zw-ios.zw-wide .zw-nav::after{display:none}
+.zw-ios.zw-wide .zw-nav .toolbar-inner{position:static;height:100%;padding:0}
+.zw-ios.zw-wide .zw-nav .toolbar-pane{padding:0 2px}
+.zw-ios.zw-wide .zw-nav .tab-link{min-width:0;height:100%;padding:0 18px}
+.zw-ios.zw-wide .zw-nav .tab-link .icon{display:none}
+.zw-ios.zw-wide .zw-nav .tabbar-label{margin:0;font-size:15px;font-weight:600}
+
+/* Material wide: left navigation rail (Framework7 has none). M3: 80dp wide, FAB centred at the top. */
+.zw-md.zw-wide .views>.view{margin-left:calc(80px + var(--f7-safe-area-left));width:auto}
+.zw-md.zw-wide .zw-nav{position:fixed;top:0;bottom:0;left:0;width:calc(80px + var(--f7-safe-area-left));height:auto;transform:none}
+.zw-md.zw-wide .zw-nav .toolbar-inner{position:absolute;inset:0;height:auto;flex-direction:column;justify-content:flex-start;align-items:stretch;gap:12px;padding:calc(var(--f7-safe-area-top) + 84px) 0 0 var(--f7-safe-area-left)}
+.zw-md.zw-wide .zw-nav .tab-link{height:56px;flex:none}
+.zw-md.zw-wide .zw-fab{left:calc(12px + var(--f7-safe-area-left));top:calc(var(--f7-safe-area-top) + 4px);right:auto;bottom:auto;margin:0}
+/* Material wide: small top app bar (title in the 64dp row, FAB centred beside it) instead of the
+   large title, whose empty top row has no actions on Material. Live on resize: CSS only. */
+.zw-md.zw-wide .views>.view{--f7-navbar-large-title-height:0px}
+.zw-md.zw-wide .navbar .title-large{display:none}
+.zw-md.zw-wide .navbar-large .title{opacity:1}
+
+/* machines grid (app layout, F7 has no grid component). Phone portrait: one column (block flow, cards keep F7's margins).
+   Wide (>= 768px): 2 columns, so each card is wide enough for the Reboot / Power off / schedules row (iPhone landscape: 2
+   columns across the full width); 3 columns only from 1280px, where a card stays >= 400px. The grid is capped
+   (--zw-grid-max, 2 or 3 card widths) and centred, and the hint below shares that width, so it centres under the cards. */
+.zw-wide .page-content{--zw-grid-max:1120px}
+.zw-wide .zw-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));max-width:var(--zw-grid-max);margin-left:auto;margin-right:auto}
+/* the hint: same box as the grid (F7's block-footer margin comes from --zw-side above), text centred in it */
+.zw-wide .page-content>.block-footer.foot{--zw-side:max(calc(16px + var(--f7-safe-area-left)),calc(50% - var(--zw-grid-max) / 2));max-width:none;text-align:center}
+/* landscape notch: F7 adds the side safe areas to every card's margin AND its inner padding, which in a 2-3 column grid
+   eats the space twice per card (squeezed names, overflowing buttons). The grid takes the safe areas once instead. */
+.zw-grid{padding-left:var(--f7-safe-area-left);padding-right:var(--f7-safe-area-right)}
+.zw-grid>.card{--f7-safe-area-left:0px;--f7-safe-area-right:0px}
+@media (min-width:1280px){.zw-wide .page-content{--zw-grid-max:1440px}.zw-wide .zw-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+/* Material phone: keep the last card clear of the FAB */
+.zw-md:not(.zw-wide) .page-content{--f7-page-content-extra-padding-bottom:88px}

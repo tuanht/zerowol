@@ -8,7 +8,8 @@ const DAY: &str = "public, max-age=86400";
 type Asset = (Cow<'static, [u8]>, &'static str, &'static str);
 
 const SW: &str = include_str!("../web/sw.js");
-const JS: &str = include_str!("../web/app.js");
+// Built by `make web` (Vite) and committed, so cargo never needs Node.
+const JS: &str = include_str!("../web/dist/app.js");
 
 pub fn get(path: &str) -> Option<Asset> {
     let b = |d: &'static [u8], ct, cc| Some((Cow::Borrowed(d), ct, cc));
@@ -35,17 +36,7 @@ pub fn get(path: &str) -> Option<Asset> {
             NO_CACHE,
         )),
         "/app.css" => b(
-            include_bytes!("../web/app.css"),
-            "text/css; charset=utf-8",
-            NO_CACHE,
-        ),
-        "/vendor/framework7.js" => b(
-            include_bytes!("../web/vendor/framework7.js"),
-            "text/javascript; charset=utf-8",
-            NO_CACHE,
-        ),
-        "/vendor/framework7.css" => b(
-            include_bytes!("../web/vendor/framework7.css"),
+            include_bytes!("../web/dist/app.css"),
             "text/css; charset=utf-8",
             NO_CACHE,
         ),

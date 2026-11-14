@@ -3,8 +3,6 @@ const SHELL = [
   "/",
   "/app.js",
   "/app.css",
-  "/vendor/framework7.js",
-  "/vendor/framework7.css",
   "/manifest.webmanifest",
   "/icon.svg",
 ];

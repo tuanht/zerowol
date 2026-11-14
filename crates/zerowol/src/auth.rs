@@ -15,6 +15,8 @@ use std::fmt;
 pub enum Source {
     Ui,
     Token(String),
+    /// The scheduler firing a rule.
+    Schedule,
 }
 
 impl fmt::Display for Source {
@@ -22,6 +24,7 @@ impl fmt::Display for Source {
         match self {
             Source::Ui => write!(f, "ui"),
             Source::Token(n) => write!(f, "token:{n}"),
+            Source::Schedule => write!(f, "schedule"),
         }
     }
 }
@@ -154,6 +157,11 @@ mod tests {
     fn source_display() {
         assert_eq!(Source::Ui.to_string(), "ui");
         assert_eq!(Source::Token("zc".into()).to_string(), "token:zc");
+    }
+
+    #[test]
+    fn source_logged_as_schedule() {
+        assert_eq!(Source::Schedule.to_string(), "schedule");
     }
 
     #[test]
