@@ -1,7 +1,9 @@
 use crate::api_machines::log;
 use crate::app::{ApiError, AppState, JsonBody};
 use crate::auth::Source;
-use crate::model::{Machine, Repeat, SchedAction, Schedule, State, Weekday, new_id, now};
+use crate::model::{
+    LogResult, Machine, Repeat, SchedAction, Schedule, State, Weekday, new_id, now,
+};
 use crate::schedule;
 use axum::Json;
 use axum::extract::{Extension, Path, Query, State as AxState};
@@ -224,6 +226,18 @@ pub async fn patch(
         }
         if let Some(tz) = &tz {
             prune_skips(&mut s, tz);
+            // Outcomes are keyed by (rule, date): a new action, time or repeat is a new
+            // occurrence from today on, so today's old outcome must not block or mislabel it.
+            // A `firing` entry is in flight and stays (never fire twice).
+            let old = &st.schedules[idx];
+            if old.action != s.action || old.time != s.time || old.repeat != s.repeat {
+                let t = today(tz);
+                st.schedule_log.retain(|e| {
+                    e.schedule_id != id
+                        || e.result == LogResult::Firing
+                        || schedule::parse_date(&e.date).is_none_or(|d| d < t)
+                });
+            }
         }
         st.schedules[idx] = s.clone();
         Ok::<_, ApiError>(s)

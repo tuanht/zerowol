@@ -610,3 +610,57 @@ async fn require_token_applies() {
     let (c, _) = req("GET", &format!("{base}/api/v1/settings"), &[], None).await;
     assert_eq!(c, 401);
 }
+
+#[tokio::test]
+async fn retiming_a_rule_clears_todays_outcome_so_the_new_time_fires() {
+    let (base, st, _d) = spawn(false).await;
+    set_tz(&base, HCM).await;
+    let mid = machine(&base, "AA:BB:CC:DD:EE:01", true).await;
+    let s = sched(&base, &mid, "wake", "07:00", json!({"kind":"daily"})).await;
+    let id = s["id"].as_str().unwrap().to_string();
+    let t = today();
+    let yesterday = t.yesterday().unwrap();
+    st.store
+        .update(|x| {
+            for d in [yesterday, t] {
+                x.schedule_log.push(zerowol::model::LogEntry {
+                    schedule_id: id.clone(),
+                    date: d.to_string(),
+                    at: 1,
+                    result: zerowol::model::LogResult::Ok,
+                    detail: None,
+                });
+            }
+            Ok::<_, StoreError>(())
+        })
+        .unwrap();
+    // Only toggling keeps today's outcome.
+    for on in [false, true] {
+        let (c, _) = call(
+            "PATCH",
+            &base,
+            &format!("/schedules/{id}"),
+            Some(json!({"enabled":on})),
+        )
+        .await;
+        assert_eq!(c, 200);
+    }
+    assert_eq!(st.store.snapshot().schedule_log.len(), 2);
+    // A new action or time is a new occurrence today: today's old outcome goes, history stays.
+    let (c, _) = call(
+        "PATCH",
+        &base,
+        &format!("/schedules/{id}"),
+        Some(json!({"action":"poweroff","time":"23:59"})),
+    )
+    .await;
+    assert_eq!(c, 200);
+    let dates: Vec<String> = st
+        .store
+        .snapshot()
+        .schedule_log
+        .iter()
+        .map(|e| e.date.clone())
+        .collect();
+    assert_eq!(dates, vec![yesterday.to_string()]);
+}
