@@ -204,7 +204,14 @@ html.zw-ios-pwa .offline{padding-top:calc(env(safe-area-inset-top) + var(--zw-to
 .zw-md.zw-wide .navbar .title-large{display:none}
 .zw-md.zw-wide .navbar-large .title{opacity:1}
 
-/* machines grid: one column on phones, auto-fill when wide (cards keep their own margins) */
-.zw-wide .zw-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+/* machines grid (app layout, F7 has no grid component). Phone portrait: one column (block flow, cards keep F7's margins).
+   Wide (>= 768px): 2 columns, so each card is wide enough for the Reboot / Power off / schedules row (iPhone landscape: 2
+   columns across the full width); 3 columns only from 1280px, where a card stays >= 400px. The grid is capped
+   (--zw-grid-max, 2 or 3 card widths) and centred, and the hint below shares that width, so it centres under the cards. */
+.zw-wide .page-content{--zw-grid-max:1120px}
+.zw-wide .zw-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));max-width:var(--zw-grid-max);margin-left:auto;margin-right:auto}
+/* the hint: same box as the grid (F7's block-footer margin comes from --zw-side above), text centred in it */
+.zw-wide .page-content>.block-footer.foot{--zw-side:max(calc(16px + var(--f7-safe-area-left)),calc(50% - var(--zw-grid-max) / 2));max-width:none;text-align:center}
+@media (min-width:1280px){.zw-wide .page-content{--zw-grid-max:1440px}.zw-wide .zw-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 /* Material phone: keep the last card clear of the FAB */
 .zw-md:not(.zw-wide) .page-content{--f7-page-content-extra-padding-bottom:88px}

@@ -165,6 +165,39 @@ const cases = {
     await p.setViewportSize(vp);
     await frames(p, 5);
   },
+  // Wide screens: 2-3 columns, grid centred, hint centred under it, no card button label overflowing its capsule.
+  "machines grid: columns, centring, button labels": async (p) => {
+    const vp = p.viewportSize();
+    const sizes = [[852, 393, 2], [932, 430, 2], [834, 1194, 2], [1133, 744, 2], [1376, 1032, 3], [1280, 800, 3], [1920, 1080, 3], [393, 852, 1], [744, 1133, 1]];
+    for (const [w, h, want] of sizes) {
+      await p.setViewportSize({ width: w, height: h });
+      await frames(p, 5);
+      const m = await p.evaluate((cur) => {
+        const pc = document.querySelector(cur + " .page-content").getBoundingClientRect();
+        const g = document.querySelector(cur + " .zw-grid").getBoundingClientRect();
+        const cards = [...document.querySelectorAll(cur + " .card.machine")];
+        const cols = new Set(cards.map((c) => Math.round(c.getBoundingClientRect().left))).size;
+        const f = document.querySelector(cur + " .foot");
+        const r = document.createRange(); r.selectNodeContents(f);
+        const t = r.getBoundingClientRect();
+        const btns = [...document.querySelectorAll(cur + " .card-footer.actions .button")].map((b) => {
+          const s = b.querySelector("span");
+          return { over: b.scrollWidth > b.clientWidth, clipped: !!s && s.scrollWidth > s.clientWidth + 1, text: s ? s.textContent : "" };
+        });
+        return { wide: document.documentElement.classList.contains("zw-wide"), cols, gl: g.left - pc.left, gr: pc.right - g.right, gw: g.width, pw: pc.width, gc: (g.left + g.right) / 2, tc: (t.left + t.right) / 2, btns };
+      }, CUR);
+      const at = `${w}x${h}`;
+      if (m.cols !== want || m.cols > 3) throw new Error(`${at}: ${m.cols} columns, want ${want}`);
+      if (m.btns.some((b) => b.over || b.clipped)) throw new Error(`${at}: button label overflows ${JSON.stringify(m.btns.filter((b) => b.over || b.clipped))}`);
+      if (!m.wide) continue;
+      if (Math.abs(m.gl - m.gr) > 2) throw new Error(`${at}: grid not centred (left ${m.gl}, right ${m.gr})`);
+      if (Math.abs(m.tc - m.gc) > 2) throw new Error(`${at}: hint centre ${m.tc} vs grid centre ${m.gc}`);
+      // iPhone landscape: 2 columns filling the content width
+      if (h < 500 && m.gw < m.pw - 2) throw new Error(`${at}: grid ${m.gw}px does not fill the ${m.pw}px content`);
+    }
+    await p.setViewportSize(vp);
+    await frames(p, 5);
+  },
   "hostile machine name renders as text": async (p) => {
     const id = await p.evaluate(async (name) => {
       const r = await fetch("/api/v1/machines", {
