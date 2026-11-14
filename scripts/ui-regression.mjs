@@ -714,7 +714,7 @@ const cases = {
       await tab(p, "Machines");
     });
   },
-  "schedule sheet and form are flush (full width) on both themes, Close X on the left": async (p, theme) => {
+  "schedule sheet and form are flush (full width) on phones on both themes, Close X on the left": async (p, theme) => {
     const before = await scheduleIds(p);
     const gaps = (sel) => p.evaluate((sel) => {
       const r = document.querySelector(sel).getBoundingClientRect();
@@ -747,6 +747,46 @@ const cases = {
       await p.click(`${F} .navbar .left a`);
       await p.waitForFunction(() => !document.querySelector(".zw-sched-form.modal-in"), null, { timeout: SETTLE });
     } finally {
+      await removeSchedulesExcept(p, before);
+    }
+  },
+  "schedule sheet matches the New schedule popup width on tablet and desktop, centred, at the bottom": async (p) => {
+    const before = await scheduleIds(p);
+    const vp = p.viewportSize();
+    const box = (sel) => p.evaluate((sel) => {
+      const r = document.querySelector(sel).getBoundingClientRect();
+      return { left: r.left, right: innerWidth - r.right, bottom: innerHeight - r.bottom, w: r.width };
+    }, sel);
+    try {
+      await createRule(p, { machine_id: "dev-ws", action: "wake", time: "05:00", repeat: { kind: "daily" }, enabled: true });
+      for (const [w, h] of [[1280, 800], [834, 1194]]) {
+        await p.setViewportSize({ width: w, height: h });
+        await p.reload();
+        await p.waitForSelector(CARDS);
+        const S = ".zw-sched-sheet.modal-in";
+        const F = ".zw-sched-form.modal-in";
+        // the form's width, from a machine without rules (its button opens the form directly)
+        await p.locator(CARDS).filter({ hasText: "Laptop" }).locator("[aria-label=Schedules]").click();
+        await p.waitForSelector(`${F} #s-time`);
+        await stable(p, F);
+        const f = await box(F);
+        // Material's wide form is a dialog: Cancel in the bottom toolbar instead of the navbar's X
+        await p.click(`${F} .navbar .left a, ${F} .toolbar a:has-text('Cancel')`);
+        await p.waitForFunction(() => !document.querySelector(".zw-sched-form.modal-in"), null, { timeout: SETTLE });
+        await p.locator(CARDS).filter({ hasText: "Workstation" }).locator("[aria-label=Schedules]").click();
+        await p.waitForSelector(S);
+        await stable(p, S);
+        const g = await box(S);
+        const at = `${w}x${h}: sheet ${JSON.stringify(g)}, form ${JSON.stringify(f)}`;
+        if (Math.abs(g.w - f.w) > 1) throw new Error(`sheet width differs from the form popup: ${at}`);
+        if (Math.abs(g.left - g.right) > 2) throw new Error(`sheet not centred: ${at}`);
+        if (g.left < 1) throw new Error(`sheet still full width: ${at}`);
+        if (Math.abs(g.bottom) > 0.5) throw new Error(`sheet not at the bottom: ${at}`);
+        await p.click(`${S} .navbar .left [aria-label=Close]`);
+        await p.waitForFunction(() => !document.querySelector(".zw-sched-sheet.modal-in"), null, { timeout: SETTLE });
+      }
+    } finally {
+      await p.setViewportSize(vp);
       await removeSchedulesExcept(p, before);
     }
   },

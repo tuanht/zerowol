@@ -144,6 +144,12 @@
 .zw-day-pop{--f7-popover-width:320px}
 /* machine schedule sheet: auto height (F7 sheet), but our list scrolls once it gets long */
 .zw-sheet-body{max-height:70vh;overflow-y:auto;max-width:672px;margin:0 auto}
+/* Tablet/desktop: F7 sheets always span the full width, but the New schedule popup becomes a centred card of
+   --f7-popup-tablet-width at this exact breakpoint. Give the sheet the same width, centred like F7's popup does
+   (left 50% + negative margin, never transform: F7 animates the sheet's translateY), still attached to the bottom. */
+@media (min-width:630px) and (min-height:630px){
+  .zw-sched-sheet{left:50%;width:var(--f7-popup-tablet-width);margin-left:calc(-1 * var(--f7-popup-tablet-width) / 2)}
+}
 
 /* pairing + tokens */
 .code{font:13px/18px ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;background:rgba(120,120,128,.14);border-radius:12px;padding:12px;margin:12px 0 0;user-select:all;-webkit-user-select:all}
