@@ -211,10 +211,7 @@ const cases = {
     const F = ".zw-sched-form.modal-in";
     await p.waitForSelector(F);
     await p.waitForTimeout(700);
-    if (await p.locator(`${F} .zw-pick`).isVisible()) {
-      await p.click(`${F} button:has-text('Use ')`);
-      await p.waitForSelector(`${F} .segmented`);
-    }
+    await p.waitForSelector(`${F} .segmented`);
     // The action segmented control spans its list row (less the row's 16px side padding).
     const [seg, row] = [await p.locator(`${F} .segmented`).boundingBox(), await p.locator(`${F} .zw-seg-row`).boundingBox()];
     if (Math.abs(seg.width - (row.width - 32)) > 1) throw new Error(`segmented ${seg.width}px in a ${row.width}px row`);
@@ -225,11 +222,7 @@ const cases = {
   "schedules tab: week strip layout, day/week switch": async (p) => {
     await tab(p, "Schedules");
     const S = "#view-schedules .page-current[data-name=schedules]";
-    await p.waitForSelector(`${S} .zw-strip, ${S} button:has-text('Use ')`);
-    if (await p.locator(`${S} button:has-text('Use ')`).count()) {
-      await p.click(`${S} button:has-text('Use ')`);
-      await p.waitForSelector(`${S} .zw-strip`);
-    }
+    await p.waitForSelector(`${S} .zw-strip`);
     // Our strip: 7 equal day cells between the arrows, inside the viewport, no horizontal overflow.
     const m = await p.evaluate((sel) => {
       const strip = document.querySelector(sel + " .zw-strip");
@@ -275,11 +268,7 @@ const cases = {
     const vp = p.viewportSize();
     try {
       await tab(p, "Schedules");
-      await p.waitForSelector(`${S} .zw-strip, ${S} button:has-text('Use ')`);
-      if (await p.locator(`${S} button:has-text('Use ')`).count()) {
-        await p.click(`${S} button:has-text('Use ')`);
-        await p.waitForSelector(`${S} .zw-strip`);
-      }
+      await p.waitForSelector(`${S} .zw-strip`);
       // Phone: move to next week, then widen: the wide Week grid shows that same week.
       await p.click(`${S} .zw-strip [aria-label='Next week']`);
       await p.waitForTimeout(400);

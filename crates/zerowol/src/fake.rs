@@ -159,12 +159,13 @@ fn with_sim<R>(id: &'static str, f: impl FnOnce(&mut Sim) -> R) -> R {
     f(sim)
 }
 
-/// Seed any missing fake machines into the store. With no schedule timezone
-/// saved yet, also set one (Europe/Berlin), so the Schedules tab and the UI
-/// regression cases start from a usable state rather than the timezone prompt.
-pub fn seed(store: &Store) -> Result<usize, StoreError> {
+/// Seed any missing fake machines into the store. With no effective schedule
+/// timezone (none saved, and no usable `TZ` env), also save one (Europe/Berlin),
+/// so the Schedules tab and the UI regression cases start from a usable state
+/// rather than the timezone prompt. A developer's own `TZ` is left in charge.
+pub fn seed(store: &Store, tz_env: Option<&str>) -> Result<usize, StoreError> {
     store.update(|st| {
-        if st.settings.timezone.is_none() {
+        if crate::schedule::effective_tz(&st.settings, tz_env).is_none() {
             st.settings.timezone = Some(SEED_TZ.into());
         }
         let mut added = 0;
@@ -311,7 +312,7 @@ mod tests {
     fn seed_sets_timezone_only_when_unset() {
         let d = tempfile::TempDir::new().unwrap();
         let store = Store::open(d.path()).unwrap();
-        assert_eq!(seed(&store).unwrap(), SPECS.len());
+        assert_eq!(seed(&store, None).unwrap(), SPECS.len());
         assert_eq!(store.snapshot().settings.timezone.as_deref(), Some(SEED_TZ));
         store
             .update(|st| {
@@ -319,11 +320,23 @@ mod tests {
                 Ok::<_, StoreError>(())
             })
             .unwrap();
-        assert_eq!(seed(&store).unwrap(), 0);
+        assert_eq!(seed(&store, None).unwrap(), 0);
         assert_eq!(
             store.snapshot().settings.timezone.as_deref(),
             Some("Asia/Tokyo")
         );
+    }
+
+    #[test]
+    fn seed_respects_tz_env() {
+        let d = tempfile::TempDir::new().unwrap();
+        let store = Store::open(d.path()).unwrap();
+        // A real TZ is the effective timezone: nothing is saved.
+        seed(&store, Some("America/New_York")).unwrap();
+        assert_eq!(store.snapshot().settings.timezone, None);
+        // UTC counts as no timezone, so the seed saves its own.
+        seed(&store, Some("UTC")).unwrap();
+        assert_eq!(store.snapshot().settings.timezone.as_deref(), Some(SEED_TZ));
     }
 
     #[test]

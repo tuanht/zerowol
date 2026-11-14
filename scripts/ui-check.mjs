@@ -1,5 +1,6 @@
 // WARNING: this script DELETES ALL MACHINES on the target server (and removes the tokens it creates).
-// Point it only at a throwaway instance, e.g. ZEROWOL_DATA=$(mktemp -d) ZEROWOL_PORT=18090 ZEROWOL_BIND=127.0.0.1 cargo run -p zerowol
+// Point it only at a throwaway instance with TZ unset (for the timezone-step screenshots), e.g.
+// env -u TZ ZEROWOL_DATA=$(mktemp -d) ZEROWOL_PORT=18090 ZEROWOL_BIND=127.0.0.1 cargo run -p zerowol
 // Usage: NODE_PATH=$(npm root -g) node scripts/ui-check.mjs http://127.0.0.1:18090
 // Writes screenshots (ios/md x light/dark x empty, add, pairing, list, edit, confirm, settings,
 // form-tz, form-new, form-edit (clash warning), sched-day, sched-week, plus 1280x800 list-wide,

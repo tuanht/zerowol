@@ -54,7 +54,7 @@ async fn serve(cfg: Config) -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
-    seed_fakes(&store);
+    seed_fakes(&store, cfg.tz_env.as_deref());
     let flusher = store.clone();
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(Duration::from_secs(60));
@@ -96,7 +96,7 @@ async fn serve(cfg: Config) -> ExitCode {
 
 /// Development only: seed simulated machines when built with `dev-fakes` and
 /// ZEROWOL_DEV_FAKES=1. Without the feature the variable is ignored (with a warning).
-fn seed_fakes(store: &Store) {
+fn seed_fakes(store: &Store, tz_env: Option<&str>) {
     let wanted = matches!(
         std::env::var("ZEROWOL_DEV_FAKES").as_deref().map(str::trim),
         Ok("1" | "true")
@@ -105,13 +105,13 @@ fn seed_fakes(store: &Store) {
         return;
     }
     #[cfg(feature = "dev-fakes")]
-    match zerowol::fake::seed(store) {
+    match zerowol::fake::seed(store, tz_env) {
         Ok(n) => tracing::warn!("DEV: fake machines enabled ({n} seeded); ids start with 'dev-'"),
         Err(e) => tracing::error!("DEV: seeding fake machines failed: {e}"),
     }
     #[cfg(not(feature = "dev-fakes"))]
     {
-        let _ = store;
+        let _ = (store, tz_env);
         tracing::warn!("ZEROWOL_DEV_FAKES ignored: built without the dev-fakes feature");
     }
 }

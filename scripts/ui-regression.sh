@@ -11,7 +11,9 @@ BIN=${CARGO_TARGET_DIR:-target}/debug/zerowol
 TMP=$(mktemp -d)
 trap 'kill "${PID:-}" 2>/dev/null || true; rm -rf "$TMP"' EXIT
 
-ZEROWOL_DEV_FAKES=1 ZEROWOL_DATA=$TMP ZEROWOL_PORT=$PORT ZEROWOL_BIND=127.0.0.1 "$BIN" >"$TMP/server.log" 2>&1 &
+# TZ unset: the "no tz prompt" case needs a server with no timezone to fall back to,
+# whatever the caller's environment (the fake seed then saves Europe/Berlin).
+env -u TZ ZEROWOL_DEV_FAKES=1 ZEROWOL_DATA=$TMP ZEROWOL_PORT=$PORT ZEROWOL_BIND=127.0.0.1 "$BIN" >"$TMP/server.log" 2>&1 &
 PID=$!
 for _ in $(seq 50); do
   curl -fs "http://127.0.0.1:$PORT/healthz" >/dev/null 2>&1 && break

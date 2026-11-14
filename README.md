@@ -181,14 +181,14 @@ The web UI is a Vue 3 + Framework7-Vue app in `crates/zerowol/web/src`, built wi
 
 ### Development server with fake machines
 
-`make dev` runs a local server (data in `target/dev-data`, port 8090) built with the `dev-fakes` feature and `ZEROWOL_DEV_FAKES=1`. It seeds five fake machines (ids starting with `dev-`, IPs in the unroutable 192.0.2.0/24) whose status and power actions are simulated: a paired Workstation that powers off/reboots, a Media PC that wakes, a Laptop with an unreachable agent, a Gaming PC whose agent rejects requests (clock skew), and an Old Server that never wakes (to see the timeout). If no schedule timezone is saved yet, it also saves `Europe/Berlin`, so the Schedules tab works straight away. The feature is off by default, so release, `make dist` and Docker builds don't contain this code and ignore the variable.
+`make dev` runs a local server (data in `target/dev-data`, port 8090) built with the `dev-fakes` feature and `ZEROWOL_DEV_FAKES=1`. It seeds five fake machines (ids starting with `dev-`, IPs in the unroutable 192.0.2.0/24) whose status and power actions are simulated: a paired Workstation that powers off/reboots, a Media PC that wakes, a Laptop with an unreachable agent, a Gaming PC whose agent rejects requests (clock skew), and an Old Server that never wakes (to see the timeout). If there is no schedule timezone yet (none saved and no usable `TZ`), it also saves `Europe/Berlin`, so the Schedules tab works straight away; your own `TZ` is respected. The feature is off by default, so release, `make dist` and Docker builds don't contain this code and ignore the variable.
 
 ## Screenshots
 
-Screenshots are not committed. Generate them against a throwaway instance (the script deletes all machines on its target):
+Screenshots are not committed. Generate them against a throwaway instance (the script deletes all machines on its target; `TZ` is unset so the schedule form's timezone step can be shown):
 
 ```sh
-ZEROWOL_DATA=$(mktemp -d) ZEROWOL_PORT=18090 ZEROWOL_BIND=127.0.0.1 cargo run -p zerowol &
+env -u TZ ZEROWOL_DATA=$(mktemp -d) ZEROWOL_PORT=18090 ZEROWOL_BIND=127.0.0.1 cargo run -p zerowol &
 NODE_PATH=$(npm root -g) node scripts/ui-check.mjs http://127.0.0.1:18090
 ```
 
