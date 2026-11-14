@@ -6,6 +6,7 @@ use tokio::net::TcpStream;
 use zerowol::app::{AppState, router};
 use zerowol::config::{self, Config};
 use zerowol::model::now;
+use zerowol::scheduler;
 use zerowol::store::Store;
 
 #[tokio::main]
@@ -78,6 +79,7 @@ async fn serve(cfg: Config) -> ExitCode {
         cfg: Arc::new(cfg),
         limiter: Arc::new(Mutex::new(Default::default())),
     };
+    tokio::spawn(scheduler::run(state.clone()));
     let final_store = state.store.clone();
     let served = axum::serve(listener, router(state))
         .with_graceful_shutdown(shutdown_signal())

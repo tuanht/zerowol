@@ -170,6 +170,68 @@ pub fn expand(
     out
 }
 
+/// An occurrence can still fire up to this long after its time.
+pub const GRACE_SECS: i64 = 120;
+/// How far back the startup pass looks for missed occurrences.
+pub const LOOKBACK_SECS: i64 = 7 * 86400;
+
+/// An occurrence that is due (to fire, or to be logged missed).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Due {
+    pub schedule_id: String,
+    pub machine_id: String,
+    pub action: crate::model::SchedAction,
+    pub date: String,
+    pub at: jiff::Timestamp,
+}
+
+/// Enabled, non-skipped occurrences with `after < at <= now` and no log entry
+/// for (id, date). Split into (fire, missed) by `now - at <= GRACE_SECS`.
+/// Both lists are sorted by `at`.
+pub fn select(
+    state: &crate::model::State,
+    tz: &jiff::tz::TimeZone,
+    after: jiff::Timestamp,
+    now: jiff::Timestamp,
+) -> (Vec<Due>, Vec<Due>) {
+    let (mut fire, mut missed) = (Vec::new(), Vec::new());
+    if after >= now {
+        return (fire, missed);
+    }
+    let from = after.to_zoned(tz.clone()).date();
+    let to = now.to_zoned(tz.clone()).date();
+    for s in state.schedules.iter().filter(|s| s.enabled) {
+        for o in expand(s, tz, from, to) {
+            if o.skipped || o.at <= after || o.at > now {
+                continue;
+            }
+            let date = o.date.to_string();
+            if state
+                .schedule_log
+                .iter()
+                .any(|e| e.schedule_id == s.id && e.date == date)
+            {
+                continue;
+            }
+            let due = Due {
+                schedule_id: s.id.clone(),
+                machine_id: s.machine_id.clone(),
+                action: s.action.clone(),
+                date,
+                at: o.at,
+            };
+            if now.as_second() - o.at.as_second() <= GRACE_SECS {
+                fire.push(due);
+            } else {
+                missed.push(due);
+            }
+        }
+    }
+    fire.sort_by(|a, b| (a.at, &a.schedule_id).cmp(&(b.at, &b.schedule_id)));
+    missed.sort_by(|a, b| (a.at, &a.schedule_id).cmp(&(b.at, &b.schedule_id)));
+    (fire, missed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -423,5 +485,148 @@ mod tests {
             }
         }
         assert_ne!(a[0].at, b[0].at);
+    }
+
+    fn sel_state(s: crate::model::Schedule, log: Vec<LogEntry>) -> crate::model::State {
+        crate::model::State {
+            schedules: vec![s],
+            schedule_log: log,
+            ..Default::default()
+        }
+    }
+    fn local(tz: &str, s: &str) -> jiff::Timestamp {
+        s.parse::<jiff::civil::DateTime>()
+            .unwrap()
+            .to_zoned(zone(tz).unwrap())
+            .unwrap()
+            .timestamp()
+    }
+    fn entry(date: &str, result: LogResult) -> LogEntry {
+        LogEntry {
+            schedule_id: "s".into(),
+            date: date.into(),
+            at: 0,
+            result,
+            detail: None,
+        }
+    }
+    const HCM: &str = "Asia/Ho_Chi_Minh";
+
+    #[test]
+    fn select_fires_within_grace() {
+        use crate::model::Repeat;
+        let st = sel_state(sch("07:30", Repeat::Daily, &[]), vec![]);
+        let (fire, missed) = select(
+            &st,
+            &zone(HCM).unwrap(),
+            local(HCM, "2026-11-14T07:29:50"),
+            local(HCM, "2026-11-14T07:30:10"),
+        );
+        assert_eq!((fire.len(), missed.len()), (1, 0));
+        let f = &fire[0];
+        assert_eq!(
+            (
+                f.schedule_id.as_str(),
+                f.machine_id.as_str(),
+                f.date.as_str()
+            ),
+            ("s", "m", "2026-11-14")
+        );
+        assert_eq!(f.action, crate::model::SchedAction::Wake);
+        assert_eq!(f.at, local(HCM, "2026-11-14T07:30:00"));
+    }
+
+    #[test]
+    fn select_missed_beyond_grace() {
+        use crate::model::Repeat;
+        let st = sel_state(sch("07:30", Repeat::Daily, &[]), vec![]);
+        let (fire, missed) = select(
+            &st,
+            &zone(HCM).unwrap(),
+            local(HCM, "2026-11-14T07:00:00"),
+            local(HCM, "2026-11-14T07:33:00"),
+        );
+        assert_eq!((fire.len(), missed.len()), (0, 1));
+        assert_eq!(missed[0].date, "2026-11-14");
+    }
+
+    #[test]
+    fn select_window_is_half_open() {
+        use crate::model::Repeat;
+        let st = sel_state(sch("07:30", Repeat::Daily, &[]), vec![]);
+        let tz = zone(HCM).unwrap();
+        let at = local(HCM, "2026-11-14T07:30:00");
+        let (f, m) = select(&st, &tz, at, local(HCM, "2026-11-14T07:30:15"));
+        assert_eq!((f.len(), m.len()), (0, 0), "after == at excluded");
+        let (f, m) = select(&st, &tz, local(HCM, "2026-11-14T07:29:45"), at);
+        assert_eq!((f.len(), m.len()), (1, 0), "now == at included");
+    }
+
+    #[test]
+    fn select_skips_logged_dates() {
+        use crate::model::Repeat;
+        let st = sel_state(
+            sch("07:30", Repeat::Daily, &[]),
+            vec![entry("2026-11-14", LogResult::Firing)],
+        );
+        let (fire, missed) = select(
+            &st,
+            &zone(HCM).unwrap(),
+            local(HCM, "2026-11-14T07:00:00"),
+            local(HCM, "2026-11-14T07:30:10"),
+        );
+        assert_eq!((fire.len(), missed.len()), (0, 0));
+    }
+
+    #[test]
+    fn select_ignores_disabled_and_skipped() {
+        use crate::model::Repeat;
+        let tz = zone(HCM).unwrap();
+        let (a, n) = (
+            local(HCM, "2026-11-14T07:29:50"),
+            local(HCM, "2026-11-14T07:30:10"),
+        );
+        let mut s = sch("07:30", Repeat::Daily, &[]);
+        s.enabled = false;
+        let (f, m) = select(&sel_state(s, vec![]), &tz, a, n);
+        assert_eq!((f.len(), m.len()), (0, 0));
+        let s = sch("07:30", Repeat::Daily, &["2026-11-14"]);
+        let (f, m) = select(&sel_state(s, vec![]), &tz, a, n);
+        assert_eq!((f.len(), m.len()), (0, 0));
+    }
+
+    #[test]
+    fn select_spans_dates() {
+        use crate::model::Repeat;
+        let st = sel_state(sch("07:30", Repeat::Daily, &[]), vec![]);
+        let (fire, missed) = select(
+            &st,
+            &zone(HCM).unwrap(),
+            local(HCM, "2026-11-12T06:00:00"),
+            local(HCM, "2026-11-14T07:30:30"),
+        );
+        assert_eq!(fire.len(), 1);
+        assert_eq!(
+            missed.iter().map(|d| d.date.as_str()).collect::<Vec<_>>(),
+            ["2026-11-12", "2026-11-13"]
+        );
+    }
+
+    #[test]
+    fn logged_date_never_refires_after_tz_change() {
+        use crate::model::Repeat;
+        // Fired at 07:30 Ho Chi Minh (00:30Z); zone then changed to Berlin,
+        // whose 07:30 on the same date (06:30Z) is still ahead.
+        let st = sel_state(
+            sch("07:30", Repeat::Daily, &[]),
+            vec![entry("2026-11-14", LogResult::Ok)],
+        );
+        let (fire, missed) = select(
+            &st,
+            &zone("Europe/Berlin").unwrap(),
+            local("Europe/Berlin", "2026-11-14T07:29:00"),
+            local("Europe/Berlin", "2026-11-14T07:30:30"),
+        );
+        assert_eq!((fire.len(), missed.len()), (0, 0));
     }
 }

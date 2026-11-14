@@ -1,4 +1,4 @@
-use crate::agent_client::{self, AgentError};
+use crate::actions::{self, WakeOutcome};
 use crate::app::{ApiError, AppState, JsonBody};
 use crate::auth::Source;
 use crate::install;
@@ -6,7 +6,6 @@ use crate::model::{
     AgentCfg, Machine, default_broadcast, format_mac, new_id, new_secret, parse_mac,
 };
 use crate::status::{self, Status};
-use crate::wol;
 use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::http::{HeaderMap, StatusCode};
@@ -14,10 +13,8 @@ use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::net::Ipv4Addr;
-use std::time::{Duration, Instant};
 use zerowol_proto::Action;
 
-const RATE_WINDOW: Duration = Duration::from_secs(10);
 const DEFAULT_AGENT_PORT: u16 = 9009;
 
 type ApiResult<T> = Result<T, ApiError>;
@@ -119,9 +116,7 @@ fn valid_port(v: &Option<serde_json::Value>, what: &str) -> ApiResult<Option<u16
     }
 }
 
-pub(crate) fn log(action: &str, machine: &str, source: &Source, result: &str) {
-    tracing::info!("action={action} machine={machine} source={source} result={result}");
-}
+pub(crate) use crate::actions::log;
 
 fn enabled_count(st: &crate::model::State, machine_id: &str) -> usize {
     st.schedules
@@ -315,26 +310,11 @@ pub async fn wake(
     Path(id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let m = find(&state, &id)?;
-    if status::machine_status(&m).await.online {
-        log("wake", &m.name, &source, "already online");
-        return Ok(Json(json!({"result":"already online"})));
-    }
-    let mac = parse_mac(&m.mac).map_err(|_| bad("invalid mac"))?;
-    #[cfg(feature = "dev-fakes")]
-    if crate::fake::wake(&m).is_some() {
-        log("wake", &m.name, &source, "sent (simulated)");
-        return Ok(Json(json!({"result":"sent"})));
-    }
-    match wol::send(mac, m.broadcast, m.wol_port).await {
-        Ok(()) => {
-            log("wake", &m.name, &source, "sent");
-            Ok(Json(json!({"result":"sent"})))
-        }
-        Err(e) => {
-            log("wake", &m.name, &source, "error");
-            Err(ApiError(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
-        }
-    }
+    let result = match actions::wake(&state, &m, &source).await? {
+        WakeOutcome::Sent => "sent",
+        WakeOutcome::AlreadyOnline => "already online",
+    };
+    Ok(Json(json!({ "result": result })))
 }
 
 async fn power(
@@ -345,40 +325,8 @@ async fn power(
     action: Action,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
     let m = find(&state, &id)?;
-    let Some(agent) = &m.agent else {
-        return Err(ApiError(StatusCode::CONFLICT, "no agent".into()));
-    };
-    {
-        let mut lim = state.limiter.lock().unwrap_or_else(|e| e.into_inner());
-        let t = Instant::now();
-        if let Some(prev) = lim.get(&m.id)
-            && t.duration_since(*prev) < RATE_WINDOW
-        {
-            return Err(ApiError(
-                StatusCode::TOO_MANY_REQUESTS,
-                "rate limited".into(),
-            ));
-        }
-        lim.insert(m.id.clone(), t);
-    }
-    #[cfg(feature = "dev-fakes")]
-    let sim = crate::fake::power(&m, action);
-    #[cfg(not(feature = "dev-fakes"))]
-    let sim = None;
-    let res = match sim {
-        Some(r) => r,
-        None => agent_client::power(m.ip, agent.port, &agent.secret, action).await,
-    };
-    match res {
-        Ok(()) => {
-            log(name, &m.name, &source, "accepted");
-            Ok((StatusCode::ACCEPTED, Json(json!({"result":"accepted"}))))
-        }
-        Err(e @ (AgentError::Unreachable | AgentError::Rejected(_))) => {
-            log(name, &m.name, &source, &e.message());
-            Err(ApiError(StatusCode::BAD_GATEWAY, e.message()))
-        }
-    }
+    actions::power(&state, &m, &source, name, action).await?;
+    Ok((StatusCode::ACCEPTED, Json(json!({"result":"accepted"}))))
 }
 
 pub async fn poweroff(
