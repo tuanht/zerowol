@@ -57,6 +57,24 @@
 .zw-pick select{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}
 /* iOS list rows put the value on the right: mirrors Phase 1's .zw-ios .zw-inline input rule for selects */
 .zw-ios .zw-inline select{text-align:right;text-align-last:right}
+/* a disabled rule's pill: grey like the offline status dot */
+.zw-pill.off{background:#8E8E93}
+/* agenda row text of a disabled rule (greyed like F7's item footer) and a failed / missed outcome:
+   the core framework7 css has no text-color-gray / text-color-red helpers (only text-color-primary) */
+.zw-off{color:var(--f7-list-item-footer-text-color)}
+.zw-bad{color:var(--zw-red)}
+/* Schedules page week strip: our own row of arrows + 7 day buttons (F7 has no calendar strip).
+   pan-y: the browser keeps vertical scrolling, our pointer handlers get the horizontal swipe. */
+.zw-strip{display:grid;grid-template-columns:32px repeat(7,1fr) 32px;align-items:center;touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.zw-strip>.link{justify-content:center}
+/* the day cells are our own <button>s: drop the browser's button box */
+.zw-day{appearance:none;background:none;border:0;margin:0;padding:4px 0;font:inherit;color:inherit;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer}
+.zw-wd{font-size:12px;opacity:.6}
+.zw-num{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:17px}
+.zw-day.today .zw-num{color:var(--f7-theme-color);font-weight:600}
+.zw-day.sel .zw-num{background:var(--f7-theme-color);color:var(--f7-md-on-primary,#fff);font-weight:600}
+.zw-dots{display:flex;gap:3px;height:6px}
+.zw-dots .dot{width:6px;height:6px}
 /* machine schedule sheet: auto height (F7 sheet), but our list scrolls once it gets long */
 .zw-sheet-body{max-height:70vh;overflow-y:auto;max-width:672px;margin:0 auto}
 

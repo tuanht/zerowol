@@ -221,6 +221,30 @@ const cases = {
     await p.waitForSelector(".zw-sched-form.modal-in", { state: "detached", timeout: SETTLE }).catch(() => {});
     if (await p.locator(F).count()) throw new Error("form still open after Cancel");
   },
+  "schedules tab: week strip layout, day/week switch": async (p) => {
+    await tab(p, "Schedules");
+    const S = "#view-schedules .page-current[data-name=schedules]";
+    await p.waitForSelector(`${S} .zw-strip, ${S} button:has-text('Use ')`);
+    if (await p.locator(`${S} button:has-text('Use ')`).count()) {
+      await p.click(`${S} button:has-text('Use ')`);
+      await p.waitForSelector(`${S} .zw-strip`);
+    }
+    // Our strip: 7 equal day cells between the arrows, inside the viewport, no horizontal overflow.
+    const m = await p.evaluate((sel) => {
+      const strip = document.querySelector(sel + " .zw-strip");
+      const days = [...strip.querySelectorAll(".zw-day")].map((d) => d.getBoundingClientRect().width);
+      const r = strip.getBoundingClientRect();
+      return { days, left: r.left, right: r.right, iw: innerWidth, over: strip.scrollWidth - strip.clientWidth };
+    }, S);
+    if (m.days.length !== 7) throw new Error(`${m.days.length} day cells`);
+    if (Math.max(...m.days) - Math.min(...m.days) > 1) throw new Error(`unequal day cells ${JSON.stringify(m.days)}`);
+    if (m.left < 0 || m.right > m.iw || m.over > 0) throw new Error(`strip outside the viewport ${JSON.stringify(m)}`);
+    await p.click(`${S} .segmented button:has-text('Week')`);
+    await p.waitForSelector(`${S} .segmented button.button-active:has-text('Week')`);
+    await p.click(`${S} .segmented button:has-text('Day')`);
+    await p.waitForSelector(`${S} .segmented button.button-active:has-text('Day')`);
+    await tab(p, "Machines");
+  },
   "no old wording": async (p) => {
     const check = async (where) => {
       const t = await p.evaluate(() => document.body.innerText);

@@ -8,24 +8,28 @@ import MachinesPage from "./pages/MachinesPage.vue";
 import MachinePage from "./pages/MachinePage.vue";
 import PairPage from "./pages/PairPage.vue";
 import SettingsPage from "./pages/SettingsPage.vue";
+import SchedulesPage from "./pages/SchedulesPage.vue";
 import { applyScheme } from "./lib/prefs.js";
 import { installBackGuard } from "./lib/back.js";
 import { IOS, wide } from "./lib/layout.js";
 import { state as machines, startPolling } from "./lib/machines.js";
 import { api, offlineMsg } from "./lib/api.js";
 import { toast } from "./lib/ui.js";
+import { openScheduleForm } from "./lib/schedules.js";
 
 const props = defineProps({ f7params: { type: Object, required: true } });
 
 // One entry per tab, in display order. Each tab is its own view with its own
-// page stack. Phase 2 inserts Schedules between Machines and Settings.
+// page stack.
 const tabs = [
   { id: "view-machines", label: "Machines", icon: "desk", url: "/" },
+  { id: "view-schedules", label: "Schedules", icon: "calendar", url: "/schedules/" },
   { id: "view-settings", label: "Settings", icon: "gear", url: "/settings/" },
 ];
 // The add action of each tab: iOS pages show it as "＋" in their navbar,
 // Material shows it as the FAB (bottom right on phones, top of the rail when wide).
-const addFor = { "view-machines": "/machine/new/" };
+// A URL string navigates the tab's view; a function is called.
+const addFor = { "view-machines": "/machine/new/", "view-schedules": () => openScheduleForm({}) };
 provide("addFor", addFor);
 
 // Finds the machine in the store, or fetches the list once (deep link) and
@@ -56,6 +60,7 @@ const params = {
     { path: "/machine/new/", component: MachinePage },
     { path: "/machine/:id/pair/", async: machineRoute(PairPage) },
     { path: "/machine/:id/", async: machineRoute(MachinePage) },
+    { path: "/schedules/", component: SchedulesPage },
     { path: "/settings/", component: SettingsPage },
   ],
 };
@@ -68,7 +73,7 @@ watchEffect(() => root.classList.toggle("zw-wide", wide.value));
 const activeTab = ref(tabs[0].id);
 // The add FAB belongs to a tab's root page only, not to its sub-pages.
 const atRoot = ref(true);
-const fabUrl = computed(() => (IOS || !atRoot.value ? null : addFor[activeTab.value]));
+const fabAdd = computed(() => (IOS || !atRoot.value ? null : addFor[activeTab.value]));
 let f7app = null;
 const viewOf = (id) => f7app && f7app.views.get("#" + id);
 const syncRoot = () => {
@@ -90,8 +95,10 @@ f7ready((f7) => {
 });
 
 function add() {
+  const a = fabAdd.value;
   const v = viewOf(activeTab.value);
-  if (v && fabUrl.value) v.router.navigate(fabUrl.value);
+  if (typeof a === "function") a();
+  else if (v && a) v.router.navigate(a);
 }
 </script>
 
@@ -123,7 +130,7 @@ function add() {
         :tab-active="i === 0"
         :url="t.url"
       />
-      <div v-if="fabUrl" class="fab fab-right-bottom zw-fab">
+      <div v-if="fabAdd" class="fab fab-right-bottom zw-fab">
         <a href="#" aria-label="Add" @click.prevent="add"><Icon name="plus" /></a>
       </div>
     </f7-views>

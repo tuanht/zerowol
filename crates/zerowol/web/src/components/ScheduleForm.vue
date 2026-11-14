@@ -2,14 +2,15 @@
 import { computed, nextTick, reactive, ref, watch } from "vue";
 import { f7 } from "framework7-vue";
 import Icon from "./Icon.vue";
+import ZonePicker from "./ZonePicker.vue";
 import { IOS, wide } from "../lib/layout.js";
 import { offlineMsg } from "../lib/api.js";
 import { confirmDialog } from "../lib/ui.js";
 import { refresh, state as machines } from "../lib/machines.js";
 import { ACTION, DAYS, DAY_LABEL, REPEAT } from "../lib/words.js";
 import {
-  browserZone, clashes, closeScheduleForm, createSchedule, deleteSchedule, formState, reloadSchedules,
-  schedState, setTimezone, todayIn, updateSchedule, weekdayOf, zoneGroups, zoneOffset,
+  clashes, closeScheduleForm, createSchedule, deleteSchedule, formState, reloadSchedules,
+  schedState, setTimezone, todayIn, updateSchedule, weekdayOf,
 } from "../lib/schedules.js";
 
 const ios = IOS;
@@ -20,10 +21,6 @@ const busy = ref(false);
 const draft = reactive({ machine_id: "", action: "wake", time: "08:00", kind: "daily", date: "", days: [], enabled: true });
 let result = false;
 let shownSeq = 0; // the open (formState.seq) the popup is showing
-
-const zone = browserZone();
-const offset = zoneOffset(zone);
-const groups = zoneGroups(zone);
 
 const edit = computed(() => formState.schedule);
 // Material on a wide screen is an M3 dialog: title on top, Cancel / Save at the bottom, no navbar.
@@ -173,23 +170,7 @@ const onClosed = () => closeScheduleForm(shownSeq, result);
         <div v-if="dialog" class="block-title block-title-large">{{ title }}</div>
 
         <template v-if="step === 'tz'">
-          <div class="block-title block-title-large text-align-center">{{ zone }}</div>
-          <div class="block text-align-center">
-            <p v-if="offset">({{ offset }})</p>
-            <p>Schedules run on the server's clock. Use your timezone?</p>
-          </div>
-          <div class="block">
-            <button class="button button-large button-fill button-round" :class="{ disabled: busy }" type="button" @click="useZone(zone)">Use {{ zone }}</button>
-            <label class="button button-large zw-pick">
-              Choose another…
-              <select aria-label="Timezone" @change="useZone($event.target.value)">
-                <option value="" selected disabled>Choose another…</option>
-                <optgroup v-for="g in groups" :key="g.label" :label="g.label">
-                  <option v-for="z in g.zones" :key="z" :value="z">{{ z }}</option>
-                </optgroup>
-              </select>
-            </label>
-          </div>
+          <ZonePicker :busy="busy" @pick="useZone" />
         </template>
 
         <form v-else @submit.prevent="save">

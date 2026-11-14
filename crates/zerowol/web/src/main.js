@@ -11,6 +11,7 @@ import Card from "framework7/components/card";
 import Popup from "framework7/components/popup";
 import Sheet from "framework7/components/sheet";
 import Tabs from "framework7/components/tabs";
+import Actions from "framework7/components/actions";
 import Framework7Vue, {
   f7App, f7BlockFooter, f7Link, f7Navbar, f7NavRight, f7Page, f7Popup, f7Sheet, f7Toolbar, f7ToolbarPane, f7View, f7Views,
 } from "framework7-vue";
@@ -28,6 +29,7 @@ import "framework7/components/radio/css";
 import "framework7/components/popup/css";
 import "framework7/components/sheet/css";
 import "framework7/components/tabs/css";
+import "framework7/components/actions/css";
 import "framework7/components/typography/css";
 import "./styles/app.css";
 
@@ -36,7 +38,7 @@ import { themePref, darkParam } from "./lib/prefs.js";
 import { initLayout } from "./lib/layout.js";
 
 const theme = themePref();
-Framework7.use([Dialog, Toast, Toggle, Input, Fab, Preloader, Accordion, Card, Popup, Sheet, Tabs]);
+Framework7.use([Dialog, Toast, Toggle, Input, Fab, Preloader, Accordion, Card, Popup, Sheet, Tabs, Actions]);
 Framework7.use(Framework7Vue, { theme });
 initLayout();
 

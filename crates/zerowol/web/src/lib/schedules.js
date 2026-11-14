@@ -13,7 +13,8 @@ export const getSettings = () => api("GET", "/settings");
 export const fetchOccurrences = (from, to) =>
   api("GET", "/schedules/occurrences?from=" + encodeURIComponent(from) + "&to=" + encodeURIComponent(to));
 
-export const schedState = reactive({ list: [], settings: null });
+// `rev` goes up whenever rules change (form save/delete, skip/unskip), so views showing occurrences reload.
+export const schedState = reactive({ list: [], settings: null, rev: 0 });
 
 export async function reloadSchedules() {
   const [list, settings] = await Promise.all([listSchedules(), getSettings()]);
@@ -107,6 +108,12 @@ export function todayIn(zone) {
 }
 export const weekdayOf = (date) => DAYS[weekday(date)];
 
+// The browser's zone, offered first by the timezone prompts (form step and Schedules page).
+export function zoneChoice() {
+  const zone = browserZone();
+  return { zone, offset: zoneOffset(zone), groups: zoneGroups(zone) };
+}
+
 let zones = null;
 // IANA zones grouped by region for <optgroup>s; `extra` (e.g. the stored zone) is added when the browser lacks it.
 export function zoneGroups(extra) {
@@ -150,6 +157,7 @@ export function openScheduleForm({ machineId, schedule } = {}) {
 export function closeScheduleForm(seq, result) {
   if (seq !== formState.seq) return;
   formState.open = false;
+  if (result) schedState.rev++;
   const r = resolveForm;
   resolveForm = null;
   if (r) r(result);
