@@ -25,6 +25,10 @@ export function dayTime(date, clock) {
   return nextQuarter(clock.min);
 }
 
+// Capture listeners on document. An options object, not `true`: equivalent in browsers, and Node 22's EventTarget
+// (the unit tests' stand-in document) ignores a boolean capture in removeEventListener.
+const CAPTURE = { capture: true };
+
 // Pointer handlers for a grid (bind them on the grid element; call destroy() when it unmounts).
 // `find(target)` returns the slot element under the pointer (or null: no long press there);
 // `resolve(el)` returns what to run for it, or null when the slot is over (no feedback then).
@@ -47,15 +51,15 @@ export function longPress({ find, resolve, delay = 500, slop = 10 }) {
   };
   const disarm = () => {
     clearTimeout(disarmTimer);
-    document.removeEventListener("click", swallow, true);
-    document.removeEventListener("pointerdown", disarm, true);
-    document.removeEventListener("keydown", disarm, true);
+    document.removeEventListener("click", swallow, CAPTURE);
+    document.removeEventListener("pointerdown", disarm, CAPTURE);
+    document.removeEventListener("keydown", disarm, CAPTURE);
   };
   const arm = () => {
     disarm();
-    document.addEventListener("click", swallow, true);
-    document.addEventListener("pointerdown", disarm, true);
-    document.addEventListener("keydown", disarm, true);
+    document.addEventListener("click", swallow, CAPTURE);
+    document.addEventListener("pointerdown", disarm, CAPTURE);
+    document.addEventListener("keydown", disarm, CAPTURE);
     disarmTimer = setTimeout(disarm, 1000);
   };
   const clear = () => {
