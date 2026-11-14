@@ -9,6 +9,7 @@ import MachinePage from "./pages/MachinePage.vue";
 import PairPage from "./pages/PairPage.vue";
 import SettingsPage from "./pages/SettingsPage.vue";
 import SchedulesPage from "./pages/SchedulesPage.vue";
+import TimezonePage from "./pages/TimezonePage.vue";
 import { applyScheme } from "./lib/prefs.js";
 import { installBackGuard } from "./lib/back.js";
 import { IOS, wide } from "./lib/layout.js";
@@ -62,6 +63,8 @@ const params = {
     { path: "/machine/:id/", async: machineRoute(MachinePage) },
     { path: "/schedules/", component: SchedulesPage },
     { path: "/settings/", component: SettingsPage },
+    // Opened from Settings and from the Schedules page's timezone prompt, in that tab's view.
+    { path: "/timezone/", component: TimezonePage },
   ],
 };
 

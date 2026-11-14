@@ -3,6 +3,7 @@ import { computed, nextTick, reactive, ref, watch } from "vue";
 import { f7 } from "framework7-vue";
 import Icon from "./Icon.vue";
 import ZonePicker from "./ZonePicker.vue";
+import ZoneList from "./ZoneList.vue";
 import Segmented from "./Segmented.vue";
 import { IOS, wide } from "../lib/layout.js";
 import { offlineMsg } from "../lib/api.js";
@@ -16,7 +17,8 @@ import {
 
 const ios = IOS;
 const opened = ref(false);
-const step = ref("form"); // "tz" (timezone confirm, only while none is set) or "form"
+const step = ref("form"); // "tz" (timezone confirm, only while none is set), "tz-list" (its "Choose another…") or "form"
+const query = ref(""); // the "tz-list" searchbar
 const err = ref("");
 const busy = ref(false);
 const draft = reactive({ machine_id: "", action: "wake", time: "08:00", kind: "daily", date: "", days: [], enabled: true });
@@ -26,7 +28,7 @@ let shownSeq = 0; // the open (formState.seq) the popup is showing
 const edit = computed(() => formState.schedule);
 // Material on a wide screen is an M3 dialog: title on top, Cancel / Save at the bottom, no navbar.
 const dialog = computed(() => !ios && wide.value);
-const title = computed(() => (step.value === "tz" ? "Timezone" : edit.value ? "Edit Schedule" : "New Schedule"));
+const title = computed(() => (step.value !== "form" ? "Timezone" : edit.value ? "Edit Schedule" : "New Schedule"));
 const saveLabel = computed(() => (ios ? (edit.value ? "Done" : "Add") : "Save"));
 const machine = computed(() => machines.machines.find((m) => m.id === draft.machine_id));
 const noAgent = computed(() => !!machine.value && !machine.value.agent);
@@ -84,6 +86,11 @@ function toggleDay(d) {
   else if (draft.days.length > 1) draft.days.splice(i, 1); // at least one day
 }
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+function moreZones() {
+  query.value = "";
+  step.value = "tz-list";
+}
 
 async function useZone(name) {
   if (!name || busy.value) return;
@@ -145,26 +152,35 @@ async function del() {
 
 const cancel = () => (opened.value = false);
 // iOS centres the navbar title by measuring it: again once the popup is shown with its new title.
-const sizeNavbar = (p) => nextTick(() => p.el.querySelectorAll(".navbar").forEach((n) => f7.navbar.size(n)));
+const popEl = ref(null);
+const sizeIn = (el) => nextTick(() => el && el.querySelectorAll(".navbar").forEach((n) => f7.navbar.size(n)));
+const sizeNavbar = (p) => sizeIn(p.el);
+// ... and after each step change (the navbar is re-created with that step's title).
+watch(step, () => opened.value && sizeIn(popEl.value && popEl.value.$el));
 const onClosed = () => closeScheduleForm(shownSeq, result);
 </script>
 
 <template>
-  <f7-popup v-model:opened="opened" class="zw-sched-form" swipe-to-close @popup:open="sizeNavbar" @popup:closed="onClosed">
-    <div class="page">
+  <f7-popup ref="popEl" v-model:opened="opened" class="zw-sched-form" swipe-to-close @popup:open="sizeNavbar" @popup:closed="onClosed">
+    <div class="page" :class="{ 'page-with-subnavbar': step === 'tz-list' && !dialog }">
       <!-- keyed: f7-navbar decides once whether it has a right side, and the timezone step has none -->
       <f7-navbar v-if="!dialog" :key="step" :title="title">
         <template #left>
-          <f7-link v-if="ios" @click="cancel">Cancel</f7-link>
+          <f7-link v-if="step === 'tz-list'" icon="icon-back" icon-only aria-label="Back" @click="step = 'tz'" />
+          <f7-link v-else-if="ios" @click="cancel">Cancel</f7-link>
           <f7-link v-else icon-only aria-label="Close" @click="cancel"><Icon name="close" /></f7-link>
         </template>
         <template v-if="step === 'form'" #right>
           <f7-link :class="{ disabled: busy }" @click="save"><b v-if="ios">{{ saveLabel }}</b><template v-else>{{ saveLabel }}</template></f7-link>
         </template>
+        <f7-subnavbar v-if="step === 'tz-list'" :inner="false">
+          <f7-searchbar custom-search :backdrop="false" @searchbar:search="(sb, q) => (query = q)" @searchbar:clear="query = ''" />
+        </f7-subnavbar>
       </f7-navbar>
       <!-- Material wide (M3 dialog): Cancel / Save pinned at the bottom right by F7's bottom toolbar -->
       <div v-if="dialog" class="toolbar toolbar-bottom">
         <div class="toolbar-inner justify-content-flex-end">
+          <a v-if="step === 'tz-list'" class="button" href="#" @click.prevent="step = 'tz'">Back</a>
           <a class="button" href="#" @click.prevent="cancel">Cancel</a>
           <a v-if="step === 'form'" class="button" :class="{ disabled: busy }" href="#" @click.prevent="save">Save</a>
         </div>
@@ -173,7 +189,13 @@ const onClosed = () => closeScheduleForm(shownSeq, result);
         <div v-if="dialog" class="block-title block-title-large">{{ title }}</div>
 
         <template v-if="step === 'tz'">
-          <ZonePicker :busy="busy" @pick="useZone" />
+          <ZonePicker :busy="busy" @pick="useZone" @more="moreZones" />
+        </template>
+        <template v-else-if="step === 'tz-list'">
+          <!-- the M3 dialog has no navbar: its searchbar sits at the top of the content -->
+          <f7-searchbar v-if="dialog" custom-search :backdrop="false" @searchbar:search="(sb, q) => (query = q)" @searchbar:clear="query = ''" />
+          <div v-if="err" class="block errmsg" role="alert">{{ err }}</div>
+          <ZoneList :query="query" :current="(schedState.settings && schedState.settings.timezone) || ''" @pick="useZone" />
         </template>
 
         <form v-else @submit.prevent="save">
@@ -258,7 +280,7 @@ const onClosed = () => closeScheduleForm(shownSeq, result);
         <div v-if="step === 'form' && clash && machine" class="block block-strong inset" role="status">
           Another schedule acts on {{ machine.name }} at {{ clash.time }}. The second action may be rejected.
         </div>
-        <div class="block errmsg" role="alert">{{ err }}</div>
+        <div v-if="step !== 'tz-list'" class="block errmsg" role="alert">{{ err }}</div>
 
         <template v-if="step === 'form' && edit">
           <div v-if="ios" class="list list-strong inset list-dividers-ios">

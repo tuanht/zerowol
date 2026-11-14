@@ -53,8 +53,6 @@
 .zw-days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:8px 16px}
 /* the action segmented control spans its own list row (inside .item-inner it would shrink to its labels) */
 .zw-seg-row{padding:8px 16px}
-/* "Choose another…": the native timezone <select> covers our button so a tap opens the OS picker */
-.zw-pick select{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}
 /* iOS list rows put the value on the right: mirrors Phase 1's .zw-ios .zw-inline input rule for selects */
 .zw-ios .zw-inline select{text-align:right;text-align-last:right}
 /* a disabled rule's pill: grey like the offline status dot */

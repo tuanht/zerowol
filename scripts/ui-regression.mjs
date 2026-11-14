@@ -447,6 +447,58 @@ const cases = {
       if (status !== 200) throw new Error(`cleanup: restoring the timezone returned ${status}`);
     }
   },
+  "settings: timezone search -> pick": async (p) => {
+    await withTimezone(p, "Europe/Berlin", async () => {
+      await tab(p, "Settings");
+      await p.waitForSelector(`${CUR}[data-name=settings]`);
+      await p.click(`${CUR} a.item-link:has-text('Timezone')`);
+      await p.waitForSelector(`${CUR}[data-name=timezone]`);
+      // Empty query: Suggested first, the stored zone checked.
+      await p.waitForSelector(`${CUR} .zw-zones input[value='Europe/Berlin']:checked`, { state: "attached" });
+      await searchZone(p, ".view.tab-active", "ho chi");
+      const first = p.locator(`${CUR} .zw-zones li`).first();
+      if ((await first.locator(".item-footer").innerText()).trim() !== "Asia/Ho_Chi_Minh") {
+        throw new Error(`first match for "ho chi": ${await first.innerText()}`);
+      }
+      await first.click();
+      await p.waitForSelector(`${CUR}[data-name=settings]`);
+      await p.waitForSelector(`${CUR} a.item-link:has-text('Timezone'):has-text('Ho Chi Minh')`, { timeout: SETTLE });
+      const now = await p.evaluate(async () => (await fetch("/api/v1/settings")).json());
+      if (now.timezone !== "Asia/Ho_Chi_Minh") throw new Error(`picked Asia/Ho_Chi_Minh, settings ${JSON.stringify(now)}`);
+      await tab(p, "Machines");
+    });
+  },
+  "no tz prompt: choose another -> search -> pick": async (p) => {
+    await withTimezone(p, null, async () => {
+      await p.locator(CARDS).filter({ hasText: "Workstation" }).locator("[aria-label=Schedules]").click();
+      const F = ".zw-sched-form.modal-in";
+      await p.locator(`${F} button:has-text('Choose another')`).click();
+      await searchZone(p, F, "berlin");
+      const first = p.locator(`${F} .zw-zones li`).first();
+      if ((await first.locator(".item-footer").innerText()).trim() !== "Europe/Berlin") throw new Error(`first match for "berlin": ${await first.innerText()}`);
+      await first.click();
+      await p.waitForSelector(`${F} #s-time`);
+      const now = await p.evaluate(async () => (await fetch("/api/v1/settings")).json());
+      if (now.timezone !== "Europe/Berlin") throw new Error(`picked Europe/Berlin, settings ${JSON.stringify(now)}`);
+      await p.click(`${F} .navbar .left a`);
+      await p.waitForSelector(F, { state: "detached", timeout: SETTLE });
+    });
+  },
+  "schedules tab without tz: choose another -> pick": async (p) => {
+    await withTimezone(p, null, async () => {
+      await tab(p, "Schedules");
+      await p.click(`${SCHED} button:has-text('Choose another')`);
+      await p.waitForSelector(".view.tab-active .page-current[data-name=timezone]");
+      await searchZone(p, ".view.tab-active", "new y");
+      const first = p.locator(".view.tab-active .page-current .zw-zones li").first();
+      if ((await first.locator(".item-footer").innerText()).trim() !== "America/New_York") throw new Error(`first match for "new y": ${await first.innerText()}`);
+      await first.click();
+      await p.waitForSelector(`${SCHED} .segmented`, { timeout: SETTLE * 2 });
+      const now = await p.evaluate(async () => (await fetch("/api/v1/settings")).json());
+      if (now.timezone !== "America/New_York") throw new Error(`picked America/New_York, settings ${JSON.stringify(now)}`);
+      await tab(p, "Machines");
+    });
+  },
   "no old wording": async (p) => {
     const check = async (where) => {
       const t = await p.evaluate(() => document.body.innerText);
@@ -521,6 +573,30 @@ async function openPairing(p) {
 async function back(p) {
   await p.click(BACK);
   await p.waitForTimeout(450);
+}
+// Runs `fn` with the schedule timezone set to `zone` (null clears it), then restores the saved one.
+async function withTimezone(p, zone, fn) {
+  const patch = (tz) => p.evaluate(async (tz) => (await fetch("/api/v1/settings", {
+    method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ timezone: tz }),
+  })).status, tz);
+  const saved = await p.evaluate(async () => (await fetch("/api/v1/settings")).json());
+  if ((await patch(zone)) !== 200) throw new Error(`setting the timezone to ${zone} failed`);
+  try {
+    await fn();
+  } finally {
+    const status = await patch(saved.source === "settings" ? saved.timezone : null);
+    if (status !== 200) throw new Error(`cleanup: restoring the timezone returned ${status}`);
+  }
+}
+// Types into the timezone searchbar under `scope` (on iOS the page's navbar lives in the view, not the page).
+// Waits out Framework7's 400 ms iOS enable delay after the focus: a searchbar removed before it ends
+// (the form's list step closes on a pick) throws from that timer, and a person can't type and pick that fast.
+async function searchZone(p, scope, q) {
+  const input = p.locator(`${scope} .searchbar input`);
+  await input.waitFor();
+  await p.waitForTimeout(500);
+  await input.fill(q);
+  await p.waitForTimeout(600);
 }
 async function tab(p, label) {
   await p.click(`.toolbar .tab-link:has-text('${label}')`);

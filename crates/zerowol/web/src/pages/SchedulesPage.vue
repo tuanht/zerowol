@@ -17,6 +17,7 @@ import { addDays, addMonths, fmtLong, fmtRange, monthGrid, weekDays } from "../l
 import { fetchOccurrences, reloadSchedules, schedState, setTimezone, todayIn } from "../lib/schedules.js";
 import { openOccurrenceActions } from "../lib/occurrences.js";
 
+const props = defineProps({ f7router: { type: Object, required: true } });
 const ios = IOS;
 const add = inject("addFor")["view-schedules"];
 // Phone: Day (default) | Week. Wide (>= 768 px): Week (default) | Month. Each set remembers its own choice,
@@ -159,6 +160,17 @@ async function useZone(name) {
   busy.value = false;
 }
 
+// "Choose another…" opens the timezone page in this tab; picking there saves and reloads like useZone.
+const moreZones = () =>
+  props.f7router.navigate("/timezone/", {
+    props: {
+      pick: async (name) => {
+        await setTimezone(name);
+        await load();
+      },
+    },
+  });
+
 // Reload on showing the tab, and every 60 s while the tab and the document are visible.
 const pageEl = ref(null);
 let timer = null;
@@ -196,7 +208,7 @@ onBeforeUnmount(() => {
     </f7-navbar>
 
     <template v-if="schedState.settings && !tz">
-      <ZonePicker :busy="busy" @pick="useZone" />
+      <ZonePicker :busy="busy" @pick="useZone" @more="moreZones" />
     </template>
     <template v-else-if="loaded">
       <!-- Wide: our wrapper keeps the bar and grids out of the 640 px cap app.css puts on the page's direct blocks. -->

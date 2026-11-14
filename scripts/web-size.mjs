@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { gzipSync } from "node:zlib";
 import { fileURLToPath } from "node:url";
 
-const BUDGET = 184815;
+const BUDGET = 196143;
 const dist = new URL("../crates/zerowol/web/dist/", import.meta.url);
 let total = 0;
 for (const f of ["app.js", "app.css"]) {

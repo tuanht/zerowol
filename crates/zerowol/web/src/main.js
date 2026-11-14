@@ -13,8 +13,9 @@ import Sheet from "framework7/components/sheet";
 import Tabs from "framework7/components/tabs";
 import Actions from "framework7/components/actions";
 import Popover from "framework7/components/popover";
+import Searchbar from "framework7/components/searchbar";
 import Framework7Vue, {
-  f7App, f7BlockFooter, f7Link, f7Navbar, f7NavRight, f7Page, f7Popup, f7Sheet, f7Toolbar, f7ToolbarPane, f7View, f7Views,
+  f7App, f7BlockFooter, f7Link, f7Navbar, f7NavRight, f7Page, f7Popup, f7Searchbar, f7Sheet, f7Subnavbar, f7Toolbar, f7ToolbarPane, f7View, f7Views,
 } from "framework7-vue";
 
 import "framework7/css";
@@ -32,6 +33,7 @@ import "framework7/components/sheet/css";
 import "framework7/components/tabs/css";
 import "framework7/components/actions/css";
 import "framework7/components/popover/css";
+import "framework7/components/searchbar/css";
 import "framework7/components/typography/css";
 import "./styles/app.css";
 
@@ -40,7 +42,7 @@ import { themePref, darkParam } from "./lib/prefs.js";
 import { initLayout } from "./lib/layout.js";
 
 const theme = themePref();
-Framework7.use([Dialog, Toast, Toggle, Input, Fab, Preloader, Accordion, Card, Popup, Sheet, Tabs, Actions, Popover]);
+Framework7.use([Dialog, Toast, Toggle, Input, Fab, Preloader, Accordion, Card, Popup, Sheet, Tabs, Actions, Popover, Searchbar]);
 Framework7.use(Framework7Vue, { theme });
 initLayout();
 
@@ -64,7 +66,7 @@ const f7params = {
 const app = createApp(App, { f7params });
 // Register only the components the templates use (the "bundle" entry pulls in all of them).
 const components = {
-  f7App, f7BlockFooter, f7Link, f7Navbar, f7NavRight, f7Page, f7Popup, f7Sheet, f7Toolbar, f7ToolbarPane, f7View, f7Views,
+  f7App, f7BlockFooter, f7Link, f7Navbar, f7NavRight, f7Page, f7Popup, f7Searchbar, f7Sheet, f7Subnavbar, f7Toolbar, f7ToolbarPane, f7View, f7Views,
 };
 for (const [name, component] of Object.entries(components)) {
   app.component(name.replace(/([A-Z])/g, "-$1").toLowerCase(), component);

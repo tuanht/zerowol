@@ -1,6 +1,7 @@
 import { reactive } from "vue";
 import { api } from "./api.js";
 import { DAYS, DAY_LABEL, MONTHS, REPEAT } from "./words.js";
+import { modernZone, zoneNow } from "./zones.js";
 
 // ---------- API ----------
 export const listSchedules = () => api("GET", "/schedules");
@@ -80,19 +81,11 @@ export function repeatLabel(repeat) {
 // ---------- timezones ----------
 export const browserZone = () => {
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    return modernZone(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   } catch {
     return "UTC";
   }
 };
-export function zoneOffset(zone) {
-  try {
-    const p = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "shortOffset" }).formatToParts(new Date());
-    return (p.find((x) => x.type === "timeZoneName") || {}).value || "";
-  } catch {
-    return "";
-  }
-}
 // Today's date ("YYYY-MM-DD") in the given zone (browser zone when unset or unknown).
 export function todayIn(zone) {
   const fmt = (z) =>
@@ -111,28 +104,7 @@ export const weekdayOf = (date) => DAYS[weekday(date)];
 // The browser's zone, offered first by the timezone prompts (form step and Schedules page).
 export function zoneChoice() {
   const zone = browserZone();
-  return { zone, offset: zoneOffset(zone), groups: zoneGroups(zone) };
-}
-
-let zones = null;
-// IANA zones grouped by region for <optgroup>s; `extra` (e.g. the stored zone) is added when the browser lacks it.
-export function zoneGroups(extra) {
-  if (!zones) {
-    let all = [];
-    try {
-      all = Intl.supportedValuesOf("timeZone");
-    } catch {}
-    zones = all.includes("UTC") ? all : [...all, "UTC"];
-  }
-  const list = extra && !zones.includes(extra) ? [...zones, extra] : zones;
-  const map = new Map();
-  for (const z of list) {
-    const i = z.indexOf("/");
-    const g = i < 0 ? "Other" : z.slice(0, i);
-    if (!map.has(g)) map.set(g, []);
-    map.get(g).push(z);
-  }
-  return [...map].map(([label, zs]) => ({ label, zones: zs }));
+  return { zone, offset: zoneNow(zone).offset };
 }
 
 // ---------- the shared form popup and machine sheet ----------
