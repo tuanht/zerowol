@@ -15,6 +15,7 @@ pub async fn spawn(require_token: bool) -> (String, AppState, TempDir) {
         data: dir.path().to_path_buf(),
         require_token,
         bind: "127.0.0.1".parse().unwrap(),
+        tz_env: None,
     });
     let state = AppState {
         store,

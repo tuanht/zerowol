@@ -10,6 +10,7 @@ pub mod fake;
 pub mod install;
 pub mod model;
 pub mod probe;
+pub mod schedule;
 pub mod status;
 pub mod store;
 pub mod wol;
