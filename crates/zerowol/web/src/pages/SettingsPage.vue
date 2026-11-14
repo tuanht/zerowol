@@ -1,6 +1,6 @@
 <script setup>
 import { onMounted, ref } from "vue";
-import { f7 } from "framework7-vue/bundle";
+import { f7 } from "framework7-vue";
 import { api, offlineMsg } from "../lib/api.js";
 import { THEME_KEY, SCHEME_KEY, themePref, schemePref, setPref, applyScheme } from "../lib/prefs.js";
 import { confirmDialog, copyText, toast } from "../lib/ui.js";

@@ -11,7 +11,9 @@ import Card from "framework7/components/card";
 import Popup from "framework7/components/popup";
 import Sheet from "framework7/components/sheet";
 import Tabs from "framework7/components/tabs";
-import Framework7Vue, { registerComponents } from "framework7-vue/bundle";
+import Framework7Vue, {
+  f7App, f7BlockFooter, f7Link, f7Navbar, f7NavRight, f7Page, f7Toolbar, f7ToolbarPane, f7View, f7Views,
+} from "framework7-vue";
 
 import "framework7/css";
 import "framework7/components/dialog/css";
@@ -53,7 +55,11 @@ const f7params = {
 };
 
 const app = createApp(App, { f7params });
-registerComponents(app);
+// Register only the components the templates use (the "bundle" entry pulls in all of them).
+const components = { f7App, f7BlockFooter, f7Link, f7Navbar, f7NavRight, f7Page, f7Toolbar, f7ToolbarPane, f7View, f7Views };
+for (const [name, component] of Object.entries(components)) {
+  app.component(name.replace(/([A-Z])/g, "-$1").toLowerCase(), component);
+}
 app.mount("#app");
 
 if (import.meta.env.PROD && "serviceWorker" in navigator) {

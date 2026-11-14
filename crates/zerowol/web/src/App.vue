@@ -1,6 +1,6 @@
 <script setup>
 import { computed, provide, ref } from "vue";
-import { f7ready, theme } from "framework7-vue/bundle";
+import { f7ready, theme } from "framework7-vue";
 import Icon from "./components/Icon.vue";
 import MachinesPage from "./pages/MachinesPage.vue";
 import MachinePage from "./pages/MachinePage.vue";

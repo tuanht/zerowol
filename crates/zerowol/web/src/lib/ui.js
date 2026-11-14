@@ -1,4 +1,4 @@
-import { f7 } from "framework7-vue/bundle";
+import { f7 } from "framework7-vue";
 import { esc } from "./api.js";
 
 export function toast(msg, ok) {

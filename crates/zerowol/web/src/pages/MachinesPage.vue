@@ -1,6 +1,6 @@
 <script setup>
 import { inject } from "vue";
-import { theme } from "framework7-vue/bundle";
+import { theme } from "framework7-vue";
 import Icon from "../components/Icon.vue";
 import MachineCard from "../components/MachineCard.vue";
 import { state } from "../lib/machines.js";

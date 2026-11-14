@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from "vue";
-import { f7, theme } from "framework7-vue/bundle";
+import { f7, theme } from "framework7-vue";
 import Icon from "./Icon.vue";
 import { inflight, power, wake } from "../lib/machines.js";
 import { ACTION, BUSY } from "../lib/words.js";

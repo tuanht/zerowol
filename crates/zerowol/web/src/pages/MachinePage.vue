@@ -1,6 +1,6 @@
 <script setup>
 import { computed, reactive, ref } from "vue";
-import { f7, theme } from "framework7-vue/bundle";
+import { f7, theme } from "framework7-vue";
 import { api, offlineMsg } from "../lib/api.js";
 import { inflight, refresh } from "../lib/machines.js";
 import { confirmDialog, toast } from "../lib/ui.js";
