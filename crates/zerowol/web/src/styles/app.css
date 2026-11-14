@@ -20,6 +20,10 @@
 .zw-md .card-footer.actions{justify-content:flex-end;gap:8px}
 .card-footer.actions .button{gap:6px;width:auto}
 .card-footer.actions .ico{width:18px;height:18px}
+/* iOS: the schedules cell is icon-only, so it doesn't take an equal share of the split footer */
+.zw-ios .card-footer.actions .zw-sched-btn{flex:none;width:60px}
+/* the clock's <i class="icon"> (there for F7's icon badge placement) wraps an inline SVG: no text line box */
+.zw-sched-btn i.icon{display:flex}
 .foot{max-width:640px;margin-left:auto;margin-right:auto}
 .empty .item-inner{justify-content:center;text-align:center;padding:28px 0}
 .empty b{display:block;font-size:19px;margin-bottom:4px}
@@ -36,6 +40,24 @@
 .errmsg:empty{display:none}
 /* iOS has no outlined inputs, so mark the invalid row's label (Material uses F7's own outline + label colour) */
 .zw-ios .item-input-invalid .item-label{color:var(--f7-input-error-text-color)}
+
+/* schedules */
+/* action colour dots and pills (wake / reboot / power off): Framework7 has no colour-coded status marker */
+.dot.wake{background:var(--zw-green)}
+.dot.reboot{background:var(--zw-amber)}
+.dot.poweroff{background:var(--zw-red)}
+.zw-pill{display:inline-block;align-self:center;padding:2px 8px;border-radius:10px;font-size:12px;font-weight:600;line-height:16px;color:#fff;background:var(--zw-green);margin-right:12px}
+.zw-pill.reboot{background:var(--zw-amber)}
+.zw-pill.poweroff{background:var(--zw-red)}
+/* weekly day buttons: our own row of 7 equal cells inside the list (F7 has no weekday picker) */
+.zw-days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:8px 16px}
+/* the action segmented control spans its own list row (inside .item-inner it would shrink to its labels) */
+.zw-seg-row{padding:8px 16px}
+/* "Choose another…": the native timezone <select> covers our button so a tap opens the OS picker */
+.zw-pick select{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}
+.zw-ios .zw-inline select{text-align:right;text-align-last:right}
+/* machine schedule sheet: auto height (F7 sheet), but our list scrolls once it gets long */
+.zw-sheet-body{max-height:70vh;overflow-y:auto;max-width:672px;margin:0 auto}
 
 /* pairing + tokens */
 .code{font:13px/18px ui-monospace,SFMono-Regular,Menlo,monospace;word-break:break-all;background:rgba(120,120,128,.14);border-radius:12px;padding:12px;margin:12px 0 0;user-select:all;-webkit-user-select:all}

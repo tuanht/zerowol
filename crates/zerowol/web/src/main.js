@@ -12,7 +12,7 @@ import Popup from "framework7/components/popup";
 import Sheet from "framework7/components/sheet";
 import Tabs from "framework7/components/tabs";
 import Framework7Vue, {
-  f7App, f7BlockFooter, f7Link, f7Navbar, f7NavRight, f7Page, f7Toolbar, f7ToolbarPane, f7View, f7Views,
+  f7App, f7BlockFooter, f7Link, f7Navbar, f7NavRight, f7Page, f7Popup, f7Sheet, f7Toolbar, f7ToolbarPane, f7View, f7Views,
 } from "framework7-vue";
 
 import "framework7/css";
@@ -28,14 +28,17 @@ import "framework7/components/radio/css";
 import "framework7/components/popup/css";
 import "framework7/components/sheet/css";
 import "framework7/components/tabs/css";
+import "framework7/components/typography/css";
 import "./styles/app.css";
 
 import App from "./App.vue";
 import { themePref, darkParam } from "./lib/prefs.js";
+import { initLayout } from "./lib/layout.js";
 
 const theme = themePref();
 Framework7.use([Dialog, Toast, Toggle, Input, Fab, Preloader, Accordion, Card, Popup, Sheet, Tabs]);
 Framework7.use(Framework7Vue, { theme });
+initLayout();
 
 // Old installs may carry a "#!/..." hash from the previous router; start clean.
 if (location.hash) history.replaceState(null, "", location.pathname + location.search);
@@ -56,7 +59,9 @@ const f7params = {
 
 const app = createApp(App, { f7params });
 // Register only the components the templates use (the "bundle" entry pulls in all of them).
-const components = { f7App, f7BlockFooter, f7Link, f7Navbar, f7NavRight, f7Page, f7Toolbar, f7ToolbarPane, f7View, f7Views };
+const components = {
+  f7App, f7BlockFooter, f7Link, f7Navbar, f7NavRight, f7Page, f7Popup, f7Sheet, f7Toolbar, f7ToolbarPane, f7View, f7Views,
+};
 for (const [name, component] of Object.entries(components)) {
   app.component(name.replace(/([A-Z])/g, "-$1").toLowerCase(), component);
 }

@@ -1,13 +1,16 @@
 <script setup>
-import { computed, provide, ref } from "vue";
-import { f7ready, theme } from "framework7-vue";
+import { computed, provide, ref, watchEffect } from "vue";
+import { f7ready } from "framework7-vue";
 import Icon from "./components/Icon.vue";
+import ScheduleForm from "./components/ScheduleForm.vue";
+import MachineSchedules from "./components/MachineSchedules.vue";
 import MachinesPage from "./pages/MachinesPage.vue";
 import MachinePage from "./pages/MachinePage.vue";
 import PairPage from "./pages/PairPage.vue";
 import SettingsPage from "./pages/SettingsPage.vue";
 import { applyScheme } from "./lib/prefs.js";
 import { installBackGuard } from "./lib/back.js";
+import { IOS, wide } from "./lib/layout.js";
 import { state as machines, startPolling } from "./lib/machines.js";
 import { api, offlineMsg } from "./lib/api.js";
 import { toast } from "./lib/ui.js";
@@ -57,15 +60,10 @@ const params = {
   ],
 };
 
-const IOS = !!theme.ios;
 const root = document.documentElement;
 root.classList.add(IOS ? "zw-ios" : "zw-md");
-
 // "Wide" (tablet/desktop) switches the navigation layout live, e.g. on rotation.
-const wideQuery = matchMedia("(min-width: 768px)");
-const setWide = () => root.classList.toggle("zw-wide", wideQuery.matches);
-setWide();
-wideQuery.addEventListener("change", setWide);
+watchEffect(() => root.classList.toggle("zw-wide", wide.value));
 
 const activeTab = ref(tabs[0].id);
 // The add FAB belongs to a tab's root page only, not to its sub-pages.
@@ -129,5 +127,7 @@ function add() {
         <a href="#" aria-label="Add" @click.prevent="add"><Icon name="plus" /></a>
       </div>
     </f7-views>
+    <ScheduleForm />
+    <MachineSchedules />
   </f7-app>
 </template>

@@ -5,6 +5,7 @@ import Icon from "./Icon.vue";
 import { inflight, power, wake } from "../lib/machines.js";
 import { ACTION, BUSY } from "../lib/words.js";
 import { confirmDialog } from "../lib/ui.js";
+import { openMachineSchedules, openScheduleForm, reloadSchedules, schedState } from "../lib/schedules.js";
 
 const props = defineProps({ machine: { type: Object, required: true } });
 const IOS = !!theme.ios;
@@ -47,6 +48,16 @@ async function confirmPower(kind) {
   });
   if (ok) power(props.machine, kind);
 }
+
+// No rules yet: straight to the form. Otherwise the machine's schedule sheet.
+async function schedules() {
+  const m = props.machine;
+  try {
+    await reloadSchedules();
+  } catch {}
+  if (schedState.list.some((s) => s.machine_id === m.id)) openMachineSchedules(m);
+  else openScheduleForm({ machineId: m.id });
+}
 </script>
 
 <template>
@@ -84,7 +95,11 @@ async function confirmPower(kind) {
       <button v-else class="button" type="button" :class="{ disabled: !!t }" :disabled="!!t" @click="wake(machine)">
         <Icon name="power" /><span>{{ ACTION.wake }}</span>
       </button>
-      <slot name="trailing" />
+      <slot name="trailing">
+        <button class="button zw-sched-btn" type="button" aria-label="Schedules" @click="schedules">
+          <i class="icon"><Icon name="clock" /><span v-if="machine.schedules" class="badge color-primary">{{ machine.schedules }}</span></i>
+        </button>
+      </slot>
     </div>
   </div>
 </template>

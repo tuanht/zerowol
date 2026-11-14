@@ -1,6 +1,8 @@
 <script setup>
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { f7 } from "framework7-vue";
+import { IOS } from "../lib/layout.js";
+import { getSettings, schedState, setTimezone, zoneGroups } from "../lib/schedules.js";
 import { api, offlineMsg } from "../lib/api.js";
 import { THEME_KEY, SCHEME_KEY, themePref, schemePref, setPref, applyScheme } from "../lib/prefs.js";
 import { confirmDialog, copyText, toast } from "../lib/ui.js";
@@ -47,6 +49,24 @@ async function load() {
   }
 }
 onMounted(load);
+
+const ios = IOS;
+const tz = computed(() => schedState.settings && schedState.settings.timezone);
+const fromEnv = computed(() => !!schedState.settings && schedState.settings.source === "env");
+const zones = computed(() => zoneGroups(tz.value));
+onMounted(async () => {
+  try {
+    schedState.settings = await getSettings();
+  } catch {}
+});
+async function pickZone(ev) {
+  try {
+    await setTimezone(ev.target.value);
+  } catch (e) {
+    toast(offlineMsg(e));
+    ev.target.value = tz.value || "";
+  }
+}
 
 async function create() {
   try {
@@ -144,6 +164,26 @@ async function copy() {
       </ul>
     </div>
     <div class="block-footer">Tokens let scripts call the API with Authorization: Bearer.</div>
+
+    <div class="block-title">Schedules</div>
+    <div class="list list-strong inset list-dividers-ios" :class="{ 'zw-inline': ios }">
+      <ul>
+        <li class="item-content item-input" :class="{ 'item-input-outline': !ios }">
+          <div class="item-inner">
+            <div class="item-title item-label"><label for="s-tz">Timezone</label></div>
+            <div class="item-input-wrap input-dropdown-wrap">
+              <select id="s-tz" :value="tz || ''" @change="pickZone">
+                <option v-if="!tz" value="" disabled>Not set</option>
+                <optgroup v-for="g in zones" :key="g.label" :label="g.label">
+                  <option v-for="z in g.zones" :key="z" :value="z">{{ z === tz && fromEnv ? z + " (from TZ)" : z }}</option>
+                </optgroup>
+              </select>
+            </div>
+          </div>
+        </li>
+      </ul>
+    </div>
+    <div class="block-footer">Changing the timezone keeps each schedule's clock time.</div>
 
     <div class="block-title">About</div>
     <div class="list list-strong inset list-dividers-ios">

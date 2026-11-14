@@ -196,6 +196,31 @@ const cases = {
     await p.reload();
     await p.waitForSelector(CARDS);
   },
+  "card schedule button -> form layout -> cancel": async (p, theme) => {
+    const card = p.locator(CARDS).filter({ hasText: "Media PC" });
+    const clock = card.locator("[aria-label=Schedules]");
+    const wakeBtn = card.locator("button:has-text('Wake')");
+    const [cb, wb] = [await clock.boundingBox(), await wakeBtn.boundingBox()];
+    // iOS: the icon-only cell is narrower than the labeled split cell. Both: the icon sits on the labels' centre line.
+    if (theme === "ios" && !(cb.width < wb.width / 2)) throw new Error(`clock cell ${cb.width}px vs Wake ${wb.width}px`);
+    const mid = async (loc) => { const b = await loc.boundingBox(); return b.y + b.height / 2; };
+    const dy = (await mid(clock.locator("svg"))) - (await mid(wakeBtn.locator("svg")));
+    if (Math.abs(dy) > 1.5) throw new Error(`clock icon ${dy}px off the Wake icon's centre line`);
+    await clock.click();
+    const F = ".zw-sched-form.modal-in";
+    await p.waitForSelector(F);
+    await p.waitForTimeout(700);
+    if (await p.locator(`${F} .zw-pick`).isVisible()) {
+      await p.click(`${F} button:has-text('Use ')`);
+      await p.waitForSelector(`${F} .segmented`);
+    }
+    // The action segmented control spans its list row (less the row's 16px side padding).
+    const [seg, row] = [await p.locator(`${F} .segmented`).boundingBox(), await p.locator(`${F} .zw-seg-row`).boundingBox()];
+    if (Math.abs(seg.width - (row.width - 32)) > 1) throw new Error(`segmented ${seg.width}px in a ${row.width}px row`);
+    await p.click(`${F} .navbar .left a`);
+    await p.waitForSelector(".zw-sched-form.modal-in", { state: "detached", timeout: SETTLE }).catch(() => {});
+    if (await p.locator(F).count()) throw new Error("form still open after Cancel");
+  },
   "no old wording": async (p) => {
     const check = async (where) => {
       const t = await p.evaluate(() => document.body.innerText);
