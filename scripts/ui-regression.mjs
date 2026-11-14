@@ -195,6 +195,30 @@ const cases = {
       // iPhone landscape: 2 columns filling the content width
       if (h < 500 && m.gw < m.pw - 2) throw new Error(`${at}: grid ${m.gw}px does not fill the ${m.pw}px content`);
     }
+    // iPhone 17 Pro landscape with its notch safe areas (Playwright has none, so set the values F7 puts on .views.safe-areas): the grid takes
+    // them once, not every card (F7 adds them to each card's margin and inner padding).
+    await p.setViewportSize({ width: 874, height: 402 });
+    // iOS: notch on both sides (62px each); Material: an Android landscape cutout is on one side only (~48px)
+    await p.evaluate(() => {
+      const ios = document.documentElement.classList.contains("ios");
+      const s = document.querySelector(".views").style;
+      s.setProperty("--f7-safe-area-left", ios ? "62px" : "48px");
+      s.setProperty("--f7-safe-area-right", ios ? "62px" : "0px");
+    });
+    await frames(p, 5);
+    const n = await p.evaluate((cur) => {
+      const cards = [...document.querySelectorAll(cur + " .card.machine")].slice(0, 2).map((c) => c.getBoundingClientRect());
+      const name = document.querySelector(cur + " .card.machine .name");
+      const btns = [...document.querySelectorAll(cur + " .card-footer.actions .button")].map((b) => {
+        const s = b.querySelector("span");
+        return b.scrollWidth > b.clientWidth || (!!s && s.scrollWidth > s.clientWidth + 1);
+      });
+      return { gap: cards[1].left - cards[0].right, cw: cards[0].width, nameW: name.getBoundingClientRect().width, over: btns.some(Boolean) };
+    }, CUR);
+    await p.evaluate(() => { const s = document.querySelector(".views").style; s.removeProperty("--f7-safe-area-left"); s.removeProperty("--f7-safe-area-right"); });
+    if (n.over) throw new Error(`notch landscape: a button label overflows`);
+    if (n.gap > 40) throw new Error(`notch landscape: ${n.gap}px between cards (safe areas applied per card)`);
+    if (n.nameW < 80) throw new Error(`notch landscape: machine name squeezed to ${n.nameW}px`);
     await p.setViewportSize(vp);
     await frames(p, 5);
   },
