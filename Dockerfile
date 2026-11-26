@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # The builder always runs on the build host's platform and cross-compiles with
 # cargo-zigbuild, so multi-arch images never build under QEMU emulation.
-FROM --platform=$BUILDPLATFORM rust:1.99.1-alpine AS builder
+FROM --platform=$BUILDPLATFORM rust:1.100.0-alpine AS builder
 ARG TARGETARCH
 RUN apk add --no-cache zig musl-dev \
  && rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl \
